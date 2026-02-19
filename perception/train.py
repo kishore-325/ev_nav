@@ -1,5 +1,6 @@
 import os
 import sys
+import csv
 import torch
 from torch.utils.data import DataLoader, random_split
 
@@ -93,6 +94,11 @@ def run():
 
     best_val_loss = float('inf')
 
+    log_path = os.path.join(PLOTS_DIR, 'train_log.csv')
+    log_file = open(log_path, 'w', newline='')
+    logger = csv.writer(log_file)
+    logger.writerow(['epoch', 'train_loss', 'val_loss', 'mae_m', 'rmse_m', 'delta1'])
+
     # Tracking history for plots
     epochs_train = []
     losses_train = []
@@ -156,6 +162,11 @@ def run():
             losses_val.append(val_loss)
             metrics_val.append(epoch_metrics)
 
+            logger.writerow([epoch, f'{train_loss:.6f}', f'{val_loss:.6f}',
+                 f"{epoch_metrics['mae']:.3f}", f"{epoch_metrics['rmse']:.3f}",
+                 f"{epoch_metrics['delta1']:.3f}"])
+            log_file.flush()
+
             print(f"Epoch {epoch:04d}/{EPOCHS}  "
                   f"train={train_loss:.6f}  val={val_loss:.6f}  "
                   f"MAE={epoch_metrics['mae']:.3f}m  "
@@ -190,7 +201,11 @@ def run():
     # Save final checkpoint
     torch.save({'epoch': EPOCHS, 'model': model.state_dict()},
                os.path.join(CKPT_DIR, 'final.pth'))
-    print(f"Training complete. Plots saved to: {PLOTS_DIR}")
+    log_file.close()
+
+    print(f"Training complete.")
+    print(f"Training logs saved to: {log_path}")
+    print(f"Plots saved to: {PLOTS_DIR}")
 
 
 if __name__ == '__main__':

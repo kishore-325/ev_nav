@@ -140,7 +140,7 @@ class DataCollector:
         env.move()
         env.render(0)
         while True:
-            stable = self.stabilize_height(env, controller)
+            stable = self.stabilize_height(env, controller, 2.0)
             if stable:
                 break
             else:
@@ -148,7 +148,7 @@ class DataCollector:
         frame_id = 1
         capture_interval = 3
         prev_gray = None    # shape = [num_envs, 260, 346]
-        sample_id = 4792
+        sample_id = 0
 
         for step in range(max_steps):
 
@@ -220,7 +220,13 @@ class DataCollector:
                 frame_id += 1
                 prev_gray = None
                 while True:
-                    stable = self.stabilize_height(env, controller)
+                    if step <= 66000:
+                        stable = self.stabilize_height(env, controller, 2.0)
+                    elif step>66000 and step<=132000:
+                        stable = self.stabilize_height(env, controller, 2.5)
+                    else:
+                        stable = self.stabilize_height(env, controller, 3.0)
+                    
                     if stable:
                         break
                     else:
@@ -238,7 +244,7 @@ def main():
 
     print("\nConnecting to Unity...........")
     env.connectUnity()
-    data.save_images(env, int(1e4))
+    data.save_images(env, int(2e5))
 
     env.disconnectUnity()
     env.close()

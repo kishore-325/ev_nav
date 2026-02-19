@@ -95,8 +95,15 @@ def plot_qualitative(model, val_loader, device, epoch, out_dir, n_samples=4, thr
         err = np.abs(pr - gt)
         err[gt >= thresh] = 0.0   # zero out background
 
-        ev_lim = max(abs(ev.min()), abs(ev.max()), 1e-3)
-        axes[i, 0].imshow(ev,  cmap='RdBu_r', vmin=-ev_lim, vmax=ev_lim)
+        # Replicate collector visualization: black background, red=positive, blue=negative
+        scale = np.percentile(np.abs(ev), 80)
+        ev_sc = np.clip(ev / scale, -1.0, 1.0) if scale > 0 else ev.copy()
+        ev_vis = np.zeros((*ev.shape, 3), dtype=np.uint8)
+        pos = ev_sc > 0
+        neg = ev_sc < 0
+        ev_vis[pos, 0] = (255 * ev_sc[pos]).astype(np.uint8)    # Red channel
+        ev_vis[neg, 2] = (255 * -ev_sc[neg]).astype(np.uint8)   # Blue channel
+        axes[i, 0].imshow(ev_vis)
         axes[i, 1].imshow(gt,  cmap='plasma',  vmin=0, vmax=1)
         axes[i, 2].imshow(pr,  cmap='plasma',  vmin=0, vmax=1)
         err_im = axes[i, 3].imshow(err, cmap='hot', vmin=0, vmax=0.2)
