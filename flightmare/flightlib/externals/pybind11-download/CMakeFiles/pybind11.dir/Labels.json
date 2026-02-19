@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/home/kishore/evfly_flightmare/flightmare/flightlib/externals/pybind11-download/CMakeFiles/pybind11"
+		},
+		{
+			"file" : "/home/kishore/evfly_flightmare/flightmare/flightlib/externals/pybind11-download/CMakeFiles/pybind11.rule"
+		},
+		{
+			"file" : "/home/kishore/evfly_flightmare/flightmare/flightlib/externals/pybind11-download/CMakeFiles/pybind11-complete.rule"
+		},
+		{
+			"file" : "/home/kishore/evfly_flightmare/flightmare/flightlib/externals/pybind11-download/pybind11-prefix/src/pybind11-stamp/pybind11-install.rule"
+		},
+		{
+			"file" : "/home/kishore/evfly_flightmare/flightmare/flightlib/externals/pybind11-download/pybind11-prefix/src/pybind11-stamp/pybind11-mkdir.rule"
+		},
+		{
+			"file" : "/home/kishore/evfly_flightmare/flightmare/flightlib/externals/pybind11-download/pybind11-prefix/src/pybind11-stamp/pybind11-download.rule"
+		},
+		{
+			"file" : "/home/kishore/evfly_flightmare/flightmare/flightlib/externals/pybind11-download/pybind11-prefix/src/pybind11-stamp/pybind11-patch.rule"
+		},
+		{
+			"file" : "/home/kishore/evfly_flightmare/flightmare/flightlib/externals/pybind11-download/pybind11-prefix/src/pybind11-stamp/pybind11-configure.rule"
+		},
+		{
+			"file" : "/home/kishore/evfly_flightmare/flightmare/flightlib/externals/pybind11-download/pybind11-prefix/src/pybind11-stamp/pybind11-build.rule"
+		},
+		{
+			"file" : "/home/kishore/evfly_flightmare/flightmare/flightlib/externals/pybind11-download/pybind11-prefix/src/pybind11-stamp/pybind11-test.rule"
+		},
+		{
+			"file" : "/home/kishore/evfly_flightmare/flightmare/flightlib/externals/pybind11-download/pybind11-prefix/src/pybind11-stamp/pybind11-skip-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"pybind11"
+		],
+		"name" : "pybind11"
+	}
+}

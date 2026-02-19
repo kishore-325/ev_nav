@@ -1,0 +1,32 @@
+# The set of languages for which implicit dependencies are needed:
+set(CMAKE_DEPENDS_LANGUAGES
+  "CXX"
+  )
+# The set of files for implicit dependencies of each language:
+set(CMAKE_DEPENDS_CHECK_CXX
+  "/home/kishore/evfly_flightmare/flightmare/flightlib/externals/googletest-src/googletest/src/gtest-all.cc" "/home/kishore/evfly_flightmare/flightmare/flightlib/externals/googletest-build/googletest/CMakeFiles/gtest.dir/src/gtest-all.cc.o"
+  )
+set(CMAKE_CXX_COMPILER_ID "GNU")
+
+# Preprocessor definitions for this target.
+set(CMAKE_TARGET_DEFINITIONS_CXX
+  "EIGEN_STACK_ALLOCATION_LIMIT=1048576"
+  )
+
+# The include file search paths:
+set(CMAKE_CXX_TARGET_INCLUDE_PATH
+  "/usr/include/opencv4"
+  "../externals/eigen/eigen3"
+  "../tests"
+  "../include"
+  "../externals/googletest-src/googletest/include"
+  "../externals/googletest-src/googletest"
+  "../externals/pybind11-src/include"
+  )
+
+# Targets to which this target links.
+set(CMAKE_TARGET_LINKED_INFO_FILES
+  )
+
+# Fortran module output directory.
+set(CMAKE_Fortran_TARGET_MODULE_DIR "")

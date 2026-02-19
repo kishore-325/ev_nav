@@ -1,0 +1,11 @@
+datasets/
+perception/checkpoints/
+__pycache__/
+*.pyc
+*.pth
+flightmare/flightlib/build/
+*.egg-info/
+.claude/
+md_files/
+samples/
+
