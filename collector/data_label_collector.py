@@ -1,9 +1,13 @@
 import os
 import sys
+import csv
 import cv2
 import numpy as np
+import time
 
 sys.path.append(os.path.join(os.environ['FLIGHTMARE_PATH']))
+sys.path.append(os.path.join(os.environ['FLIGHTMARE_PATH'], 'flightlib'))
+sys.path.append(os.path.join(os.environ['FLIGHTMARE_PATH'], 'flightpy', 'flightrl'))
 sys.path.append(os.path.join(os.environ['PROJECT_PATH']))
 
 from ruamel.yaml import YAML, dump, RoundTripDumper
@@ -17,13 +21,31 @@ class DataCollector:
     def __init__(self):
 
         self.SMALL_EPS = 1e-5
-        self.pos_thresh, self.neg_thresh = 0.2, 0.2 
-        self.save_dir_rgb = os.path.join(os.environ['PROJECT_PATH'], 'datasets/RGB_IMAGES/')
-        self.save_dir_dep = os.path.join(os.environ['PROJECT_PATH'], 'datasets/DEPTH_IMAGES/')
-        self.save_dir_raw = os.path.join(os.environ['PROJECT_PATH'], 'datasets/DEPTH_RAW/')
-        self.save_dir_eve = os.path.join(os.environ['PROJECT_PATH'], 'datasets/EVENTS_VIS/')
-        self.save_dir_eve_raw = os.path.join(os.environ['PROJECT_PATH'], 'datasets/EVENTS_RAW/')
-        self.save_dir_labels = os.path.join(os.environ['PROJECT_PATH'], 'datasets/LABELS/')
+        self.pos_thresh, self.neg_thresh = 0.2, 0.2
+        #self.save_dir_rgb = os.path.join(os.environ['PROJECT_PATH'], 'datasets/RGB_IMAGES/')
+        #self.save_dir_dep = os.path.join(os.environ['PROJECT_PATH'], 'datasets/DEPTH_IMAGES/')
+        self.save_dir_raw = os.path.join(os.environ['PROJECT_PATH'], 'datasets/Train/DEPTH_RAW/')
+        #self.save_dir_eve = os.path.join(os.environ['PROJECT_PATH'], 'datasets/EVENTS_VIS/')
+        self.save_dir_eve_raw = os.path.join(os.environ['PROJECT_PATH'], 'datasets/Train/EVENTS_RAW/')
+        self.save_dir_labels = os.path.join(os.environ['PROJECT_PATH'], 'datasets/Train/LABELS/')
+
+        log_dir = os.path.join(os.environ['PROJECT_PATH'], 'datasets/Train/logs/')
+        os.makedirs(log_dir, exist_ok=True)
+        log_filename = f"collection_{time.strftime('%Y%m%d_%H%M%S')}.csv"
+        self._csv_file = open(os.path.join(log_dir, log_filename), 'w', newline='')
+        self._csv_writer = csv.writer(self._csv_file)
+        self._csv_writer.writerow(['timestamp', 'elapsed_time_s', 'message'])
+        self._log_start = time.time()
+
+    def log(self, message):
+        print(message)
+        ts = time.strftime('%Y-%m-%d %H:%M:%S')
+        elapsed = time.time() - self._log_start
+        self._csv_writer.writerow([ts, f'{elapsed:.3f}', message])
+        self._csv_file.flush()
+
+    def close_log(self):
+        self._csv_file.close()
 
     def create_env(self, num_envs=10):
 
@@ -47,10 +69,10 @@ class DataCollector:
     def create_directories(self, num_envs):
 
         for i in range(num_envs):
-            os.makedirs(os.path.join(self.save_dir_rgb, f'environment_{i+1}'), exist_ok=True)
-            os.makedirs(os.path.join(self.save_dir_dep, f'environment_{i+1}'), exist_ok=True)
+            #os.makedirs(os.path.join(self.save_dir_rgb, f'environment_{i+1}'), exist_ok=True)
+            #os.makedirs(os.path.join(self.save_dir_dep, f'environment_{i+1}'), exist_ok=True)
             os.makedirs(os.path.join(self.save_dir_raw, f'environment_{i+1}'), exist_ok=True)
-            os.makedirs(os.path.join(self.save_dir_eve, f'environment_{i+1}'), exist_ok=True)
+            #os.makedirs(os.path.join(self.save_dir_eve, f'environment_{i+1}'), exist_ok=True)
             os.makedirs(os.path.join(self.save_dir_eve_raw, f'environment_{i+1}'), exist_ok=True)
             os.makedirs(os.path.join(self.save_dir_labels, f'environment_{i+1}'), exist_ok=True)
 
@@ -76,7 +98,7 @@ class DataCollector:
                 vel_z_cmd = float(np.clip(kp * height_err - kd*current_vz, -max_vz, max_vz))
                 if abs(height_err)<=height_tol:
                     if not flags[env_id]:
-                        print(f"Height stabilized for environment {env_id} at z={current_z:.3f}m in {step} steps")
+                        self.log(f"Height stabilized for environment {env_id} at z={current_z:.3f}m in {step} steps")
                         flags[env_id] = True
                     vel_cmd_world = np.array([0.0, 0.0, vel_z_cmd])
                     action = controller.compute_action(vel_cmd_world, quad_state[env_id])
@@ -98,7 +120,7 @@ class DataCollector:
     def compute_events(self, prev_gray, gray):
 
         events_tot = []
-        events_vis_tot = []
+        #events_vis_tot = []
 
         for i in range(len(gray)):
 
@@ -114,7 +136,7 @@ class DataCollector:
                 events[neg_idx] = (difflog[neg_idx] // -self.neg_thresh) * -self.neg_thresh 
 
             # Red/Blue Visualization
-            scale = np.percentile(np.abs(events), 80)
+            """scale = np.percentile(np.abs(events), 80)
             if scale>0:
                 events_sc = np.clip(events/scale, -1.0, 1.0)
             else:
@@ -123,12 +145,12 @@ class DataCollector:
             pos = events_sc>0
             neg = events_sc<0
             events_vis[pos, 2] = (255 * events_sc[pos]).astype(np.uint8)    # Red chanel
-            events_vis[neg, 0] = (255 * -events_sc[neg]).astype(np.uint8)   # Blue chanel
+            events_vis[neg, 0] = (255 * -events_sc[neg]).astype(np.uint8)   # Blue chanel"""
 
             events_tot.append(events)
-            events_vis_tot.append(events_vis)
+            #events_vis_tot.append(events_vis)
         
-        return events_tot, events_vis_tot
+        return events_tot
     
     
     def save_images(self, env, max_steps):
@@ -149,6 +171,8 @@ class DataCollector:
         capture_interval = 3
         prev_gray = None    # shape = [num_envs, 260, 346]
         sample_id = 0
+        config_num = 1
+        start = time.time()
 
         for step in range(max_steps):
 
@@ -184,7 +208,7 @@ class DataCollector:
                 if prev_gray is None:
                     prev_gray = gray.copy()
                 else:
-                    eve_raw, eve_vis = self.compute_events(prev_gray, gray)
+                    eve_raw = self.compute_events(prev_gray, gray)
                     prev_gray = gray.copy()
 
                     # Get Depth images
@@ -192,18 +216,17 @@ class DataCollector:
                     depth = depth_flat.reshape(env.num_envs, 260, 346)
 
                     # Normalize Depth for visualization
-                    depth_vis = depth.copy()
+                    """depth_vis = depth.copy()
                     depth_vis[depth_vis<0.0] = 0.0
                     depth_vis[depth_vis>20.0] = 20.0
-                    depth_vis = depth_vis * 255
+                    depth_vis = depth_vis * 255"""
 
                     # save images 
-                
                     for i in range(env.num_envs):
-                        cv2.imwrite(os.path.join(os.path.join(self.save_dir_rgb, f'environment_{i+1}'), f'rgb_sample{sample_id:05d}.png'), rgb[i])
-                        cv2.imwrite(os.path.join(os.path.join(self.save_dir_dep, f'environment_{i+1}'), f'depth_sample{sample_id:05d}.png'), depth_vis[i].astype(np.uint8))
+                        #cv2.imwrite(os.path.join(os.path.join(self.save_dir_rgb, f'environment_{i+1}'), f'rgb_sample{sample_id:05d}.png'), rgb[i])
+                        #cv2.imwrite(os.path.join(os.path.join(self.save_dir_dep, f'environment_{i+1}'), f'depth_sample{sample_id:05d}.png'), depth_vis[i].astype(np.uint8))
                         np.save(os.path.join(os.path.join(self.save_dir_raw, f'environment_{i+1}'), f'depth_raw_sample{sample_id:05d}.npy'), depth[i])
-                        cv2.imwrite(os.path.join(os.path.join(self.save_dir_eve, f'environment_{i+1}'), f'event_vis_sample_{sample_id:05d}.png'), eve_vis[i])
+                        #cv2.imwrite(os.path.join(os.path.join(self.save_dir_eve, f'environment_{i+1}'), f'event_vis_sample_{sample_id:05d}.png'), eve_vis[i])
                         np.save(os.path.join(os.path.join(self.save_dir_eve_raw, f'environment_{i+1}'), f'event_raw_sample{sample_id:05d}.npy'), eve_raw[i])
                         np.save(os.path.join(self.save_dir_labels, f'environment_{i+1}', f'vel_cmd_sample{sample_id:05d}.npy'),vel_body_cmds[i])
 
@@ -214,6 +237,9 @@ class DataCollector:
             frame_id += 1
 
             if done.any():
+                self.log(f"Environment crashed at step {step}")
+                config_num += 1
+                self.log(f"Loading new forest configuration {config_num}")
                 env.reset()
                 env.move()
                 env.render(frame_id)
@@ -232,6 +258,9 @@ class DataCollector:
                     else:
                         env.reset()
 
+        end = time.time()
+        self.log(f"Data collection Over.")
+        self.log(f"Time Taken = {end-start:.2f}s")
 
         return None
                     
@@ -242,14 +271,14 @@ def main():
     env = data.create_env(1)
     data.create_directories(env.num_envs)
 
-    print("\nConnecting to Unity...........")
+    data.log("\nConnecting to Unity...........")
     env.connectUnity()
     data.save_images(env, int(2e5))
 
     env.disconnectUnity()
     env.close()
 
-    print("\n=========Data Collection complete=========")
+    data.close_log()
 
 if __name__ == '__main__':
     main()

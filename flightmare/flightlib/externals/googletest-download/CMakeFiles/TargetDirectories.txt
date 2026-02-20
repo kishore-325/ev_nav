@@ -1,3 +1,0 @@
-/home/kishore/evfly_flightmare/flightmare/flightlib/externals/googletest-download/CMakeFiles/rebuild_cache.dir
-/home/kishore/evfly_flightmare/flightmare/flightlib/externals/googletest-download/CMakeFiles/edit_cache.dir
-/home/kishore/evfly_flightmare/flightmare/flightlib/externals/googletest-download/CMakeFiles/googletest.dir

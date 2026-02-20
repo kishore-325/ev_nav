@@ -12,8 +12,6 @@ from stable_baselines3.common.vec_env.base_vec_env import (VecEnv,
                                                            VecEnvIndices,
                                                            VecEnvObs,
                                                            VecEnvStepReturn)
-from stable_baselines3.common.vec_env.util import (copy_obs_dict, dict_to_obs,
-                                                   obs_space_info)
 
 
 class FlightEnvVec(VecEnv):
