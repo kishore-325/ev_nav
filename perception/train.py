@@ -15,13 +15,14 @@ from perception.plot import (plot_curves, plot_qualitative,
 # ──────────────────────────────────────────────
 # Config
 # ──────────────────────────────────────────────
-DATASETS_DIR  = os.path.join(os.environ['PROJECT_PATH'], 'datasets')
-CKPT_DIR      = os.path.join(os.environ['PROJECT_PATH'], 'perception', 'checkpoints')
-PLOTS_DIR     = os.path.join(os.environ['PROJECT_PATH'], 'perception', 'plots')
+TRAIN_DATASETS_DIR = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Train')
+TEST_DATASETS_DIR  = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Test')
+CKPT_DIR           = os.path.join(os.environ['PROJECT_PATH'], 'perception', 'checkpoints')
+PLOTS_DIR          = os.path.join(os.environ['PROJECT_PATH'], 'perception', 'plots')
 EPOCHS        = 200
 BATCH_SIZE    = 16
 LR            = 1e-4
-VAL_SPLIT     = 0.15      # fraction of data held out for validation
+VAL_SPLIT     = 0.15      # fraction of train data held out for validation
 DEPTH_THRESH  = 0.99      # ignore pixels with normalised depth > this (background)
 WORKERS       = 4
 QUAL_EVERY    = 20        # save qualitative grid every N epochs
@@ -72,18 +73,23 @@ def run():
     os.makedirs(PLOTS_DIR, exist_ok=True)
 
     # ── Data ──────────────────────────────────
-    dataset  = EventDepthDataset(DATASETS_DIR)
-    n_val    = max(1, int(len(dataset) * VAL_SPLIT))
-    n_train  = len(dataset) - n_val
-    train_ds, val_ds = random_split(dataset, [n_train, n_val],
+    train_dataset = EventDepthDataset(TRAIN_DATASETS_DIR)
+    n_val    = max(1, int(len(train_dataset) * VAL_SPLIT))
+    n_train  = len(train_dataset) - n_val
+    train_ds, val_ds = random_split(train_dataset, [n_train, n_val],
                                     generator=torch.Generator().manual_seed(42))
 
-    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True,
+    test_dataset = EventDepthDataset(TEST_DATASETS_DIR)
+    n_test = len(test_dataset)
+
+    train_loader = DataLoader(train_ds,    batch_size=BATCH_SIZE, shuffle=True,
                               num_workers=WORKERS, pin_memory=True)
-    val_loader   = DataLoader(val_ds,   batch_size=BATCH_SIZE, shuffle=True,
+    val_loader   = DataLoader(val_ds,      batch_size=BATCH_SIZE, shuffle=False,
+                              num_workers=WORKERS, pin_memory=True)
+    test_loader  = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False,
                               num_workers=WORKERS, pin_memory=True)
 
-    print(f'Train: {n_train}  Val: {n_val}  Device: {DEVICE}')
+    print(f'Train: {n_train}  Val: {n_val}  Test: {n_test}  Device: {DEVICE}')
 
     # ── Model ─────────────────────────────────
     model    = OrigUNet().to(DEVICE)
@@ -97,7 +103,9 @@ def run():
     log_path = os.path.join(PLOTS_DIR, 'train_log.csv')
     log_file = open(log_path, 'w', newline='')
     logger = csv.writer(log_file)
-    logger.writerow(['epoch', 'train_loss', 'val_loss', 'mae_m', 'rmse_m', 'delta1'])
+    logger.writerow(['epoch', 'train_loss',
+                     'val_loss', 'val_mae_m', 'val_rmse_m', 'val_delta1',
+                     'test_loss', 'test_mae_m', 'test_rmse_m', 'test_delta1'])
 
     # Tracking history for plots
     epochs_train = []
@@ -105,6 +113,9 @@ def run():
     epochs_val   = []
     losses_val   = []
     metrics_val  = []   # list of dicts {mae, rmse, delta1}
+    epochs_test  = []
+    losses_test  = []
+    metrics_test = []   # list of dicts {mae, rmse, delta1}
 
     # ── Epoch loop ────────────────────────────
     for epoch in range(1, EPOCHS + 1):
@@ -129,65 +140,74 @@ def run():
         epochs_train.append(epoch)
         losses_train.append(train_loss)
 
-        # Validate every 5 epochs
+        # Validate and test every 5 epochs
         if epoch % 5 == 0 or epoch == 1:
             model.eval()
-            val_loss   = 0.0
-            sum_mae    = 0.0
-            sum_rmse   = 0.0
-            sum_d1     = 0.0
 
+            # -- Val --
+            val_loss = 0.0
+            sum_mae  = 0.0; sum_rmse = 0.0; sum_d1 = 0.0
             with torch.no_grad():
                 for event, depth in val_loader:
-                    event = event.to(DEVICE)
-                    depth = depth.to(DEVICE)
+                    event = event.to(DEVICE); depth = depth.to(DEVICE)
                     pred  = model(event)
-
                     n = event.size(0)
                     val_loss += masked_mse(pred, depth).item() * n
-
                     m = compute_metrics(pred, depth)
                     sum_mae  += m['mae']  * n
                     sum_rmse += m['rmse'] * n
                     sum_d1   += m['delta1'] * n
-
             val_loss /= n_val
-            epoch_metrics = {
-                'mae':    sum_mae  / n_val,
-                'rmse':   sum_rmse / n_val,
-                'delta1': sum_d1   / n_val,
-            }
-
+            val_metrics = {'mae': sum_mae / n_val, 'rmse': sum_rmse / n_val, 'delta1': sum_d1 / n_val}
             epochs_val.append(epoch)
             losses_val.append(val_loss)
-            metrics_val.append(epoch_metrics)
+            metrics_val.append(val_metrics)
 
-            logger.writerow([epoch, f'{train_loss:.6f}', f'{val_loss:.6f}',
-                 f"{epoch_metrics['mae']:.3f}", f"{epoch_metrics['rmse']:.3f}",
-                 f"{epoch_metrics['delta1']:.3f}"])
+            # -- Test --
+            test_loss = 0.0
+            sum_mae  = 0.0; sum_rmse = 0.0; sum_d1 = 0.0
+            with torch.no_grad():
+                for event, depth in test_loader:
+                    event = event.to(DEVICE); depth = depth.to(DEVICE)
+                    pred  = model(event)
+                    n = event.size(0)
+                    test_loss += masked_mse(pred, depth).item() * n
+                    m = compute_metrics(pred, depth)
+                    sum_mae  += m['mae']  * n
+                    sum_rmse += m['rmse'] * n
+                    sum_d1   += m['delta1'] * n
+            test_loss /= n_test
+            test_metrics = {'mae': sum_mae / n_test, 'rmse': sum_rmse / n_test, 'delta1': sum_d1 / n_test}
+            epochs_test.append(epoch)
+            losses_test.append(test_loss)
+            metrics_test.append(test_metrics)
+
+            logger.writerow([epoch, f'{train_loss:.6f}',
+                             f'{val_loss:.6f}',  f"{val_metrics['mae']:.3f}",  f"{val_metrics['rmse']:.3f}",  f"{val_metrics['delta1']:.3f}",
+                             f'{test_loss:.6f}', f"{test_metrics['mae']:.3f}", f"{test_metrics['rmse']:.3f}", f"{test_metrics['delta1']:.3f}"])
             log_file.flush()
 
-            print(f"Epoch {epoch:04d}/{EPOCHS}  "
-                  f"train={train_loss:.6f}  val={val_loss:.6f}  "
-                  f"MAE={epoch_metrics['mae']:.3f}m  "
-                  f"RMSE={epoch_metrics['rmse']:.3f}m  "
-                  f"δ<1.25={epoch_metrics['delta1']:.3f}")
+            print(f"Epoch {epoch:04d}/{EPOCHS}  train={train_loss:.6f}  "
+                  f"val={val_loss:.6f} (MAE={val_metrics['mae']:.3f}m  RMSE={val_metrics['rmse']:.3f}m  δ<1.25={val_metrics['delta1']:.3f})  "
+                  f"test={test_loss:.6f} (MAE={test_metrics['mae']:.3f}m  RMSE={test_metrics['rmse']:.3f}m  δ<1.25={test_metrics['delta1']:.3f})")
 
             # Save best checkpoint
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 ckpt_path = os.path.join(CKPT_DIR, 'best.pth')
                 torch.save({'epoch': epoch, 'model': model.state_dict(),
-                            'val_loss': val_loss, 'metrics': epoch_metrics}, ckpt_path)
+                            'val_loss': val_loss, 'metrics': val_metrics}, ckpt_path)
                 print(f"    -> saved best checkpoint (val={val_loss:.6f})")
 
-            # loss + metric curves (updated every val check)
+            # loss + metric curves (updated every val/test check)
             plot_curves(epochs_train, losses_train,
-                        epochs_val,   losses_val, metrics_val, PLOTS_DIR)
+                        epochs_val,   losses_val,  metrics_val,
+                        PLOTS_DIR,
+                        epochs_test,  losses_test, metrics_test)
 
             # qualitative grid (every QUAL_EVERY epochs)
             if epoch % QUAL_EVERY == 0 or epoch == 1:
-                plot_qualitative(model, val_loader, DEVICE, epoch, PLOTS_DIR,
+                plot_qualitative(model, test_loader, DEVICE, epoch, PLOTS_DIR,
                                  n_samples=QUAL_SAMPLES, thresh=DEPTH_THRESH)
 
         else:
@@ -195,8 +215,8 @@ def run():
 
     # ── End-of-training plots ─────────────────
     print("Generating final diagnostic plots …")
-    plot_scatter(model, val_loader, DEVICE, PLOTS_DIR, thresh=DEPTH_THRESH)
-    plot_error_histogram(model, val_loader, DEVICE, PLOTS_DIR, thresh=DEPTH_THRESH)
+    plot_scatter(model, test_loader, DEVICE, PLOTS_DIR, thresh=DEPTH_THRESH)
+    plot_error_histogram(model, test_loader, DEVICE, PLOTS_DIR, thresh=DEPTH_THRESH)
 
     # Save final checkpoint
     torch.save({'epoch': EPOCHS, 'model': model.state_dict()},
