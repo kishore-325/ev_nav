@@ -2,6 +2,7 @@ import os
 import sys
 import csv
 import torch
+import time
 from torch.utils.data import DataLoader, random_split
 
 sys.path.append(os.environ['FLIGHTMARE_PATH'])
@@ -20,7 +21,7 @@ TEST_DATASETS_DIR  = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Test'
 CKPT_DIR           = os.path.join(os.environ['PROJECT_PATH'], 'perception', 'checkpoints')
 PLOTS_DIR          = os.path.join(os.environ['PROJECT_PATH'], 'perception', 'plots')
 EPOCHS        = 200
-BATCH_SIZE    = 16
+BATCH_SIZE    = 64
 LR            = 1e-4
 VAL_SPLIT     = 0.15      # fraction of train data held out for validation
 DEPTH_THRESH  = 0.99      # ignore pixels with normalised depth > this (background)
@@ -35,7 +36,7 @@ DEVICE        = 'cuda' if torch.cuda.is_available() else 'cpu'
 # ──────────────────────────────────────────────
 def masked_mse(pred, target, thresh=DEPTH_THRESH):
     """MSE loss masked to valid (non-background) depth pixels."""
-    mask  = (target < thresh).float()
+    mask  = ((target >= 0) & (target < thresh)).float()
     loss  = ((pred - target) ** 2) * mask
     denom = mask.sum().clamp(min=1.0)
     return loss.sum() / denom
@@ -49,7 +50,7 @@ def compute_metrics(pred, target, thresh=DEPTH_THRESH):
                    metric depth = value × 100 m
     Returns dict with keys 'mae', 'rmse', 'delta1'.
     """
-    mask = target < thresh
+    mask = (target >= 0) & (target < thresh)
     if mask.sum() == 0:
         return {'mae': 0.0, 'rmse': 0.0, 'delta1': 0.0}
 
@@ -118,6 +119,7 @@ def run():
     metrics_test = []   # list of dicts {mae, rmse, delta1}
 
     # ── Epoch loop ────────────────────────────
+    start = time.time()
     for epoch in range(1, EPOCHS + 1):
 
         # Train
@@ -214,6 +216,7 @@ def run():
             print(f'Epoch {epoch}/{EPOCHS}  train={train_loss:.6f}')
 
     # ── End-of-training plots ─────────────────
+    end = time.time()
     print("Generating final diagnostic plots …")
     plot_scatter(model, test_loader, DEVICE, PLOTS_DIR, thresh=DEPTH_THRESH)
     plot_error_histogram(model, test_loader, DEVICE, PLOTS_DIR, thresh=DEPTH_THRESH)
@@ -221,9 +224,13 @@ def run():
     # Save final checkpoint
     torch.save({'epoch': EPOCHS, 'model': model.state_dict()},
                os.path.join(CKPT_DIR, 'final.pth'))
+    total_secs = int(end - start)
+    time_str = f"{total_secs // 3600}h {(total_secs % 3600) // 60}m {total_secs % 60}s"
+    logger.writerow(['# Time Taken', time_str, '', '', '', '', '', '', '', ''])
     log_file.close()
 
     print(f"Training complete.")
+    print(f"Time Taken: {time_str}")
     print(f"Training logs saved to: {log_path}")
     print(f"Plots saved to: {PLOTS_DIR}")
 
