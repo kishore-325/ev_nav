@@ -1,5 +1,4 @@
 datasets/
-perception/checkpoints/
 __pycache__/
 *.pyc
 flightmare/flightlib/build/
