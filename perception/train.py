@@ -47,7 +47,7 @@ def compute_metrics(pred, target, thresh=DEPTH_THRESH):
     MAE, RMSE (in metres), and δ<1.25 accuracy for valid pixels.
 
     pred, target : torch tensors with values in [0, 1]
-                   metric depth = value × 100 m
+                   metric depth = value * 100 m
     Returns dict with keys 'mae', 'rmse', 'delta1'.
     """
     mask = (target >= 0) & (target < thresh)
