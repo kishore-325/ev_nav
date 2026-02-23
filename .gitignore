@@ -2,7 +2,6 @@ datasets/
 perception/checkpoints/
 __pycache__/
 *.pyc
-*.pth
 flightmare/flightlib/build/
 flightmare/flightlib/externals/
 *.egg-info/
