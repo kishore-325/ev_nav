@@ -157,7 +157,7 @@ def plot_scatter(model, test_loader, device, out_dir, thresh=0.99):
         for event, depth in test_loader:
             event, depth = event.to(device), depth.to(device)
             pred = model(event)
-            mask = depth < thresh
+            mask = (depth >= 0) & (depth < thresh)
             all_pred.append(pred[mask].cpu().numpy() * 100.0)
             all_gt.append(depth[mask].cpu().numpy()  * 100.0)
 
@@ -202,7 +202,7 @@ def plot_error_histogram(model, test_loader, device, out_dir, thresh=0.99):
         for event, depth in test_loader:
             event, depth = event.to(device), depth.to(device)
             pred = model(event)
-            mask = depth < thresh
+            mask = (depth >= 0) & (depth < thresh)
             err  = (pred[mask] - depth[mask]).abs().cpu().numpy() * 100.0
             all_errors.append(err)
 
