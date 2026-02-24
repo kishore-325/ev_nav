@@ -74,7 +74,7 @@ def plot_curves(epochs_train, losses_train,
     plt.close(fig)
 
 
-def plot_qualitative(model, test_loader, device, epoch, out_dir, n_samples=4, thresh=0.99):
+def plot_qualitative(model, test_loader, device, epoch, out_dir, n_samples=4, thresh=0.99, skip_batches=0):
     """
     PLOT 2 — Side-by-side qualitative grid.
 
@@ -89,7 +89,10 @@ def plot_qualitative(model, test_loader, device, epoch, out_dir, n_samples=4, th
       Error  : hot     (white = large error)
     """
     model.eval()
-    events, depths = next(iter(test_loader))
+    loader_iter = iter(test_loader)
+    for _ in range(skip_batches):
+        next(loader_iter)
+    events, depths = next(loader_iter)
     events = events[:n_samples].to(device)
     depths = depths[:n_samples].to(device)
 

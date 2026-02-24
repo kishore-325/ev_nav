@@ -4,7 +4,7 @@ import csv
 import torch
 import torch.nn.functional as F
 import time
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader
 
 sys.path.append(os.environ['FLIGHTMARE_PATH'])
 sys.path.append(os.environ['PROJECT_PATH'])
@@ -18,17 +18,18 @@ from perception.plot import (plot_curves, plot_qualitative,
 # Config
 # ──────────────────────────────────────────────
 TRAIN_DATASETS_DIR = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Train')
+VAL_DATASETS_DIR   = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Val')
 TEST_DATASETS_DIR  = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Test')
 CKPT_DIR           = os.path.join(os.environ['PROJECT_PATH'], 'perception', 'checkpoints')
 PLOTS_DIR          = os.path.join(os.environ['PROJECT_PATH'], 'perception', 'plots')
 EPOCHS        = 200
 BATCH_SIZE    = 64
 LR            = 1e-4
-VAL_SPLIT     = 0.15      # fraction of train data held out for validation
 DEPTH_THRESH  = 0.99   # ignore pixels with normalised depth > this (background)
 WORKERS       = 4
 QUAL_EVERY    = 20        # save qualitative grid every N epochs
 QUAL_SAMPLES  = 4         # number of val samples to show in the grid
+QUAL_SKIP     = 2         # number of batches to skip before sampling the qual grid
 DEVICE        = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
@@ -77,19 +78,17 @@ def run():
 
     # ── Data ──────────────────────────────────
     train_dataset = EventDepthDataset(TRAIN_DATASETS_DIR)
-    n_val    = max(1, int(len(train_dataset) * VAL_SPLIT))
-    n_train  = len(train_dataset) - n_val
-    train_ds, val_ds = random_split(train_dataset, [n_train, n_val],
-                                    generator=torch.Generator().manual_seed(42))
+    val_dataset   = EventDepthDataset(VAL_DATASETS_DIR)
+    test_dataset  = EventDepthDataset(TEST_DATASETS_DIR)
+    n_train = len(train_dataset)
+    n_val   = len(val_dataset)
+    n_test  = len(test_dataset)
 
-    test_dataset = EventDepthDataset(TEST_DATASETS_DIR)
-    n_test = len(test_dataset)
-
-    train_loader = DataLoader(train_ds,    batch_size=BATCH_SIZE, shuffle=True,
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True,
                               num_workers=WORKERS, pin_memory=True)
-    val_loader   = DataLoader(val_ds,      batch_size=BATCH_SIZE, shuffle=False,
+    val_loader   = DataLoader(val_dataset,   batch_size=BATCH_SIZE, shuffle=False,
                               num_workers=WORKERS, pin_memory=True)
-    test_loader  = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False,
+    test_loader  = DataLoader(test_dataset,  batch_size=BATCH_SIZE, shuffle=False,
                               num_workers=WORKERS, pin_memory=True)
 
     print(f'Train: {n_train}  Val: {n_val}  Test: {n_test}  Device: {DEVICE}')
@@ -212,7 +211,8 @@ def run():
             # qualitative grid (every QUAL_EVERY epochs)
             if epoch % QUAL_EVERY == 0 or epoch == 1:
                 plot_qualitative(model, test_loader, DEVICE, epoch, PLOTS_DIR,
-                                 n_samples=QUAL_SAMPLES, thresh=DEPTH_THRESH)
+                                 n_samples=QUAL_SAMPLES, thresh=DEPTH_THRESH,
+                                 skip_batches=QUAL_SKIP)
 
         else:
             print(f'Epoch {epoch}/{EPOCHS}  train={train_loss:.6f}')
