@@ -11,7 +11,7 @@ DEPTH_SCALE  = 100.0  # normalised [0,1] -> metres
 
 def analyse_split(split_name, dataset_dir):
     """
-    Analyse depth distribution for one split (Train or Test).
+    Analyse depth distribution for one split (Train, Val, or Test).
     Saves a summary CSV to <dataset_dir>/logs/analysis_<timestamp>.csv
     Returns the summary dict.
     """
@@ -101,18 +101,22 @@ def main():
     project_path = os.environ['PROJECT_PATH']
 
     train_dir = os.path.join(project_path, 'datasets', 'Train')
+    val_dir   = os.path.join(project_path, 'datasets', 'Val')
     test_dir  = os.path.join(project_path, 'datasets', 'Test')
 
     train_summary = analyse_split('Train', train_dir)
+    val_summary   = analyse_split('Val',   val_dir)
     test_summary  = analyse_split('Test',  test_dir)
 
-    if train_summary and test_summary:
+    summaries = {k: v for k, v in [('Train', train_summary), ('Val', val_summary), ('Test', test_summary)] if v}
+    if summaries:
+        cols = list(summaries.keys())
         print("Summary comparison:")
-        print(f"  {'':12s}  {'Train':>10s}  {'Test':>10s}")
-        print(f"  {'Samples':12s}  {train_summary['samples']:>10,}  {test_summary['samples']:>10,}")
-        print(f"  {'0-15m %':12s}  {train_summary['pct_0_15m']:>9.1f}%  {test_summary['pct_0_15m']:>9.1f}%")
-        print(f"  {'15-40m %':12s}  {train_summary['pct_15_40m']:>9.1f}%  {test_summary['pct_15_40m']:>9.1f}%")
-        print(f"  {'40m+ %':12s}  {train_summary['pct_40m_plus']:>9.1f}%  {test_summary['pct_40m_plus']:>9.1f}%")
+        print(f"  {'':12s}  " + "  ".join(f"{c:>10s}" for c in cols))
+        print(f"  {'Samples':12s}  " + "  ".join(f"{summaries[c]['samples']:>10,}" for c in cols))
+        print(f"  {'0-15m %':12s}  " + "  ".join(f"{summaries[c]['pct_0_15m']:>9.1f}%" for c in cols))
+        print(f"  {'15-40m %':12s}  " + "  ".join(f"{summaries[c]['pct_15_40m']:>9.1f}%" for c in cols))
+        print(f"  {'40m+ %':12s}  " + "  ".join(f"{summaries[c]['pct_40m_plus']:>9.1f}%" for c in cols))
 
 
 if __name__ == '__main__':

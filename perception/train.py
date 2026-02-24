@@ -2,8 +2,8 @@ import os
 import sys
 import csv
 import torch
+import torch.nn.functional as F
 import time
-import math
 from torch.utils.data import DataLoader, random_split
 
 sys.path.append(os.environ['FLIGHTMARE_PATH'])
@@ -25,7 +25,7 @@ EPOCHS        = 200
 BATCH_SIZE    = 64
 LR            = 1e-4
 VAL_SPLIT     = 0.15      # fraction of train data held out for validation
-DEPTH_THRESH  = 0.660    # ignore pixels with normalised depth > this (background)
+DEPTH_THRESH  = 0.99   # ignore pixels with normalised depth > this (background)
 WORKERS       = 4
 QUAL_EVERY    = 20        # save qualitative grid every N epochs
 QUAL_SAMPLES  = 4         # number of val samples to show in the grid
@@ -36,14 +36,12 @@ DEVICE        = 'cuda' if torch.cuda.is_available() else 'cpu'
 # Loss / metrics
 # ──────────────────────────────────────────────
 def masked_weighted_mse(pred, target, thresh=DEPTH_THRESH):
-    """MSE loss masked to valid (non-background) depth pixels."""
-    mask  = ((target >= 0) & (target < thresh))
-    depth_m = torch.exp(target * math.log(101.0))-1.0
-    weight = 1.0 / depth_m.clamp(min=0.5)
-    weight = weight * mask.float()
-    loss  = ((pred - target) ** 2) * weight
-    denom = weight.sum().clamp(min=1.0)
-    return loss.sum() / denom
+    """Inverse-depth weighted MSE loss, masked to valid (non-background) pixels."""
+    mask   = (target >= 0) & (target < thresh)
+    weight = 1.0 / (target + 0.1)
+    loss   = F.mse_loss(target, pred, reduction='none')
+    loss   = (loss * weight * mask.float()).mean()
+    return loss
 
 
 def compute_metrics(pred, target, thresh=DEPTH_THRESH):
@@ -58,8 +56,8 @@ def compute_metrics(pred, target, thresh=DEPTH_THRESH):
     if mask.sum() == 0:
         return {'mae': 0.0, 'rmse': 0.0, 'delta1': 0.0}
 
-    p = torch.exp(pred[mask] * math.log(101.0))-1.0
-    t = torch.exp(target[mask] * math.log(101.0))-1.0
+    p = pred[mask]   * 100.0
+    t = target[mask] * 100.0
 
     mae   = (p - t).abs().mean().item()
     rmse  = ((p - t) ** 2).mean().sqrt().item()
