@@ -3,6 +3,7 @@ import sys
 import csv
 import torch
 import time
+import math
 from torch.utils.data import DataLoader, random_split
 
 sys.path.append(os.environ['FLIGHTMARE_PATH'])
@@ -24,7 +25,7 @@ EPOCHS        = 200
 BATCH_SIZE    = 64
 LR            = 1e-4
 VAL_SPLIT     = 0.15      # fraction of train data held out for validation
-DEPTH_THRESH  = 0.99      # ignore pixels with normalised depth > this (background)
+DEPTH_THRESH  = 0.998     # ignore pixels with normalised depth > this (background)
 WORKERS       = 4
 QUAL_EVERY    = 20        # save qualitative grid every N epochs
 QUAL_SAMPLES  = 4         # number of val samples to show in the grid
@@ -54,8 +55,8 @@ def compute_metrics(pred, target, thresh=DEPTH_THRESH):
     if mask.sum() == 0:
         return {'mae': 0.0, 'rmse': 0.0, 'delta1': 0.0}
 
-    p = pred[mask]   * 100.0    # normalised → metres
-    t = target[mask] * 100.0
+    p = torch.exp(pred[mask] * math.log(101.0))-1.0
+    t = torch.exp(target[mask] * math.log(101.0))-1.0
 
     mae   = (p - t).abs().mean().item()
     rmse  = ((p - t) ** 2).mean().sqrt().item()

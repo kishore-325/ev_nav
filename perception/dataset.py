@@ -54,6 +54,10 @@ class EventDepthDataset(Dataset):
         # np.load -> loads .npy files
         event = np.load(ev_path).astype(np.float32)     # (260, 346)
         depth = np.load(dep_path).astype(np.float32)    # (260, 346)
+        valid = depth>=0
+        depth_log = np.full_like(depth, -1.0)
+        depth_log[valid] = np.log(depth[valid]*100.0+1.0)/np.log(101.0)
+        depth = depth_log
 
         # torch.from_numpy -> converts numpy array to torch tensor
         # unsqueeze(0) -> adds new dimension at pos 0 (260,346) -> (1,260,346)

@@ -1,6 +1,7 @@
 import os
 import sys
 import torch
+import math
 from torch.utils.data import DataLoader
 
 sys.path.append(os.environ['FLIGHTMARE_PATH'])
@@ -11,20 +12,21 @@ from perception.dataset import EventDepthDataset
 
 TEST_DATASETS_DIR = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Test')
 CKPT_PATH         = os.path.join(os.environ['PROJECT_PATH'], 'perception', 'checkpoints', 'best.pth')
-DEPTH_THRESH      = 0.99
+DEPTH_THRESH      = 0.998
 BATCH_SIZE        = 64
 WORKERS           = 4
 DEVICE            = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-DEPTH_SCALE = 100.0   # normalised [0,1] -> metres
 
-# Depth bands in normalised units (÷100 to get metres)
+LOG_101 = math.log(101.0)
+
+# Depth bands in log-normalised units
 BANDS = [
-    ('0 - 5 m',   0.00, 0.05),
-    ('5 - 10 m',  0.05, 0.10),
-    ('10 - 20 m', 0.10, 0.20),
-    ('20 m +',    0.20, DEPTH_THRESH),
-    ('Overall',   0.00, DEPTH_THRESH),
+    ('0 - 5 m',   0.0,                       math.log( 6.0) / LOG_101),
+    ('5 - 10 m',  math.log( 6.0) / LOG_101,  math.log(11.0) / LOG_101),
+    ('10 - 20 m', math.log(11.0) / LOG_101,  math.log(21.0) / LOG_101),
+    ('20 m +',    math.log(21.0) / LOG_101,  DEPTH_THRESH),
+    ('Overall',   0.0,                        DEPTH_THRESH),
 ]
 
 
@@ -63,8 +65,8 @@ def evaluate():
                 if n == 0:
                     continue
 
-                p = pred[mask]  * DEPTH_SCALE
-                t = depth[mask] * DEPTH_SCALE
+                p = torch.exp(pred[mask]  * LOG_101) - 1.0
+                t = torch.exp(depth[mask] * LOG_101) - 1.0
 
                 acc[label]['sum_mae'] += (p - t).abs().sum().item()
                 acc[label]['sum_sq']  += ((p - t) ** 2).sum().item()
