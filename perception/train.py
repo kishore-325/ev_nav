@@ -25,7 +25,7 @@ EPOCHS        = 200
 BATCH_SIZE    = 64
 LR            = 1e-4
 VAL_SPLIT     = 0.15      # fraction of train data held out for validation
-DEPTH_THRESH  = 0.998     # ignore pixels with normalised depth > this (background)
+DEPTH_THRESH  = 0.660    # ignore pixels with normalised depth > this (background)
 WORKERS       = 4
 QUAL_EVERY    = 20        # save qualitative grid every N epochs
 QUAL_SAMPLES  = 4         # number of val samples to show in the grid
@@ -35,11 +35,14 @@ DEVICE        = 'cuda' if torch.cuda.is_available() else 'cpu'
 # ──────────────────────────────────────────────
 # Loss / metrics
 # ──────────────────────────────────────────────
-def masked_mse(pred, target, thresh=DEPTH_THRESH):
+def masked_weighted_mse(pred, target, thresh=DEPTH_THRESH):
     """MSE loss masked to valid (non-background) depth pixels."""
-    mask  = ((target >= 0) & (target < thresh)).float()
-    loss  = ((pred - target) ** 2) * mask
-    denom = mask.sum().clamp(min=1.0)
+    mask  = ((target >= 0) & (target < thresh))
+    depth_m = torch.exp(target * math.log(101.0))-1.0
+    weight = 1.0 / depth_m.clamp(min=0.5)
+    weight = weight * mask.float()
+    loss  = ((pred - target) ** 2) * weight
+    denom = weight.sum().clamp(min=1.0)
     return loss.sum() / denom
 
 
@@ -131,7 +134,7 @@ def run():
             depth = depth.to(DEVICE)
 
             pred = model(event)
-            loss = masked_mse(pred, depth)
+            loss = masked_weighted_mse(pred, depth)
 
             optimizer.zero_grad()
             loss.backward()
@@ -155,7 +158,7 @@ def run():
                     event = event.to(DEVICE); depth = depth.to(DEVICE)
                     pred  = model(event)
                     n = event.size(0)
-                    val_loss += masked_mse(pred, depth).item() * n
+                    val_loss += masked_weighted_mse(pred, depth).item() * n
                     m = compute_metrics(pred, depth)
                     sum_mae  += m['mae']  * n
                     sum_rmse += m['rmse'] * n
@@ -174,7 +177,7 @@ def run():
                     event = event.to(DEVICE); depth = depth.to(DEVICE)
                     pred  = model(event)
                     n = event.size(0)
-                    test_loss += masked_mse(pred, depth).item() * n
+                    test_loss += masked_weighted_mse(pred, depth).item() * n
                     m = compute_metrics(pred, depth)
                     sum_mae  += m['mae']  * n
                     sum_rmse += m['rmse'] * n
