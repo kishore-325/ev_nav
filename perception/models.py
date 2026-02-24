@@ -55,6 +55,8 @@ class OrigUNet(nn.Module):
         self.d42 = nn.Conv2d(32, 32, kernel_size=3, padding=0)
 
         self.out_conv = nn.Conv2d(32, 1, kernel_size=1)     # (N, 1, 64, 148)
+        nn.init.zeros_(self.out_conv.weight)
+        nn.init.zeros_(self.out_conv.bias)
 
         self.nonlin = nn.ReLU()
 
