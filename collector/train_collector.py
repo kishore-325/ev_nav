@@ -148,7 +148,9 @@ class DataCollector:
                 env.reset()
         frame_id = 1
         capture_interval = 3
-        prev_gray = None    # shape = [num_envs, 260, 346]
+        capture_gap = 10
+        pair_stride = capture_interval + capture_gap
+        ref_gray = None    # shape = [num_envs, 260, 346]
         sample_id = 0
         config_num = 1
         start = time.time()
@@ -171,30 +173,35 @@ class DataCollector:
                 actions.append(action)
                 vel_body_cmds.append(vel_cmd_body)
 
-            if step>0 and step%capture_interval == 0:
+            step_mod = step % pair_stride
 
-                rgb_flat = env.getImage(rgb=True)   # shape = [num_envs, W*H*3]
+            # Phase 1 — capture reference frame (frame N: steps 3, 16, 29, ...)
+            if step > 0 and step_mod == capture_interval:
+                rgb_flat = env.getImage(rgb=True)
                 rgb = rgb_flat.reshape(env.num_envs, 260, 346, 3)
+                ref_gray = np.zeros((env.num_envs, 260, 346), dtype=np.float32)
+                for i in range(env.num_envs):
+                    ref_gray[i] = cv2.cvtColor(rgb[i], cv2.COLOR_BGR2GRAY).astype(np.float32)/255.0
 
-                gray = np.zeros((env.num_envs, 260, 346), dtype=np.float32)         # shape = [num_envs, 260, 346]
+            # Phase 2 — capture event frame (frame N+3: steps 6, 19, 32, ...) and save
+            elif step > 0 and step_mod == 2 * capture_interval and ref_gray is not None:
+                rgb_flat = env.getImage(rgb=True)
+                rgb = rgb_flat.reshape(env.num_envs, 260, 346, 3)
+                gray = np.zeros((env.num_envs, 260, 346), dtype=np.float32)
                 for i in range(env.num_envs):
                     gray[i] = cv2.cvtColor(rgb[i], cv2.COLOR_BGR2GRAY).astype(np.float32)/255.0
 
-                if prev_gray is None:
-                    prev_gray = gray.copy()
-                else:
-                    eve_raw = self.compute_events(prev_gray, gray)
-                    prev_gray = gray.copy()
+                eve_raw = self.compute_events(ref_gray, gray)
 
-                    depth_flat = env.getDepthImage()    # shape = [num_envs, W*H]
-                    depth = depth_flat.reshape(env.num_envs, 260, 346)
+                depth_flat = env.getDepthImage()
+                depth = depth_flat.reshape(env.num_envs, 260, 346)
 
-                    for i in range(env.num_envs):
-                        np.save(os.path.join(self.save_dir_raw, f'environment_{i+1}', f'depth_raw_sample{sample_id:05d}.npy'), depth[i])
-                        np.save(os.path.join(self.save_dir_eve_raw, f'environment_{i+1}', f'event_raw_sample{sample_id:05d}.npy'), eve_raw[i])
-                        np.save(os.path.join(self.save_dir_labels, f'environment_{i+1}', f'vel_cmd_sample{sample_id:05d}.npy'), vel_body_cmds[i])
+                for i in range(env.num_envs):
+                    np.save(os.path.join(self.save_dir_raw, f'environment_{i+1}', f'depth_raw_sample{sample_id:05d}.npy'), depth[i])
+                    np.save(os.path.join(self.save_dir_eve_raw, f'environment_{i+1}', f'event_raw_sample{sample_id:05d}.npy'), eve_raw[i])
+                    np.save(os.path.join(self.save_dir_labels, f'environment_{i+1}', f'vel_cmd_sample{sample_id:05d}.npy'), vel_body_cmds[i])
 
-                    sample_id += 1
+                sample_id += 1
 
             _, _, done, _ = env.step(np.array(actions))
             env.render(frame_id)
@@ -208,11 +215,11 @@ class DataCollector:
                 env.move()
                 env.render(frame_id)
                 frame_id += 1
-                prev_gray = None
+                ref_gray = None
                 while True:
-                    if step <= 66000:
+                    if step <= 300000:
                         stable = self.stabilize_height(env, controller, 2.0)
-                    elif step>66000 and step<=132000:
+                    elif step <= 600000:
                         stable = self.stabilize_height(env, controller, 2.5)
                     else:
                         stable = self.stabilize_height(env, controller, 3.0)
@@ -237,7 +244,7 @@ def main():
 
     data.log("\nConnecting to Unity...........")
     env.connectUnity()
-    data.save_images(env, int(2e5))
+    data.save_images(env, int(9e5))
 
     env.disconnectUnity()
     env.close()
