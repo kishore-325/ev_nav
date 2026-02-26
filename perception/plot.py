@@ -126,9 +126,12 @@ def plot_qualitative(model, test_loader, device, epoch, out_dir, n_samples=4, th
         neg = ev_sc < 0
         ev_vis[pos, 0] = (255 * ev_sc[pos]).astype(np.uint8)    # Red channel
         ev_vis[neg, 2] = (255 * -ev_sc[neg]).astype(np.uint8)   # Blue channel
+        # Mask background (>thresh) to black in both GT and pred for fair comparison
+        gt_disp = gt.copy(); gt_disp[gt >= thresh] = 0.0
+        pr_disp = pr.copy(); pr_disp[gt >= thresh] = 0.0
         axes[i, 0].imshow(ev_vis)
-        axes[i, 1].imshow(gt,  cmap='plasma',  vmin=0, vmax=1)
-        axes[i, 2].imshow(pr,  cmap='plasma',  vmin=0, vmax=1)
+        axes[i, 1].imshow(gt_disp, cmap='plasma', vmin=0, vmax=thresh)
+        axes[i, 2].imshow(pr_disp, cmap='plasma', vmin=0, vmax=thresh)
         err_im = axes[i, 3].imshow(err, cmap='hot', vmin=0, vmax=0.2)
         for ax in axes[i]:
             ax.axis('off')

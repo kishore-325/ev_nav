@@ -37,12 +37,11 @@ DEVICE        = 'cuda' if torch.cuda.is_available() else 'cpu'
 # ──────────────────────────────────────────────
 # Loss / metrics
 # ──────────────────────────────────────────────
-def masked_weighted_mse(pred, target, thresh=DEPTH_THRESH):
-    """Inverse-depth weighted MSE loss, masked to valid (non-background) pixels."""
-    mask   = (target >= 0) & (target < thresh)
-    weight = 1.0 / (target + 0.1)
-    loss   = F.mse_loss(target, pred, reduction='none')
-    loss   = (loss * weight * mask.float()).mean()
+def masked_mse(pred, target, thresh=DEPTH_THRESH):
+    """Plain MSE loss, masked to valid (non-background) pixels."""
+    mask = (target >= 0) & (target < thresh)
+    loss = F.mse_loss(pred, target, reduction='none')
+    loss = (loss * mask.float()).mean()
     return loss
 
 
@@ -85,7 +84,7 @@ def run():
     n_val   = len(val_dataset)
     n_test  = len(test_dataset)
 
-    n_gpus = torch.cuda.device_count() if torch.cuda.is_available() else 1
+    n_gpus = min(torch.cuda.device_count() if torch.cuda.is_available() else 1, 4)
     effective_batch = BATCH_SIZE * n_gpus
 
     train_loader = DataLoader(train_dataset, batch_size=effective_batch, shuffle=True,
@@ -99,8 +98,8 @@ def run():
 
     # ── Model ─────────────────────────────────
     model    = OrigUNet().to(DEVICE)
-    if torch.cuda.device_count() > 1:
-        print(f"Using {torch.cuda.device_count()} GPU's")
+    if n_gpus > 1:
+        print(f"Using {n_gpus} GPU's")
         model = torch.nn.DataParallel(model)
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Parameters: {n_params:,}")
@@ -142,7 +141,7 @@ def run():
             depth = depth.to(DEVICE)
 
             pred = model(event)
-            loss = masked_weighted_mse(pred, depth)
+            loss = masked_mse(pred, depth)
 
             optimizer.zero_grad()
             loss.backward()
@@ -167,7 +166,7 @@ def run():
                     event = event.to(DEVICE); depth = depth.to(DEVICE)
                     pred  = model(event)
                     n = event.size(0)
-                    val_loss += masked_weighted_mse(pred, depth).item() * n
+                    val_loss += masked_mse(pred, depth).item() * n
                     m = compute_metrics(pred, depth)
                     sum_mae  += m['mae']  * n
                     sum_rmse += m['rmse'] * n
@@ -191,7 +190,7 @@ def run():
                     event = event.to(DEVICE); depth = depth.to(DEVICE)
                     pred  = model(event)
                     n = event.size(0)
-                    test_loss += masked_weighted_mse(pred, depth).item() * n
+                    test_loss += masked_mse(pred, depth).item() * n
                     m = compute_metrics(pred, depth)
                     sum_mae  += m['mae']  * n
                     sum_rmse += m['rmse'] * n
@@ -204,12 +203,12 @@ def run():
 
             logger.writerow([epoch, f'{train_loss:.6f}',
                              f'{val_loss:.6f}',  f"{val_metrics['mae']:.3f}",  f"{val_metrics['rmse']:.3f}",  f"{val_metrics['delta1']:.3f}",
-                             f'{test_loss:.6f}', f"{test_metrics['mae']:.3f}", f"{test_metrics['rmse']:.3f}", f"{test_metrics['delta1']:.3f}", f"{current_lr:.3f}"])
+                             f'{test_loss:.6f}', f"{test_metrics['mae']:.3f}", f"{test_metrics['rmse']:.3f}", f"{test_metrics['delta1']:.3f}", f"{current_lr:.2e}"])
             log_file.flush()
 
             print(f"Epoch {epoch:04d}/{EPOCHS}  train={train_loss:.6f}  "
                   f"val={val_loss:.6f} (MAE={val_metrics['mae']:.3f}m  RMSE={val_metrics['rmse']:.3f}m  δ<1.25={val_metrics['delta1']:.3f})  "
-                  f"test={test_loss:.6f} (MAE={test_metrics['mae']:.3f}m  RMSE={test_metrics['rmse']:.3f}m  δ<1.25={test_metrics['delta1']:.3f})  lr={current_lr:.3f}")
+                  f"test={test_loss:.6f} (MAE={test_metrics['mae']:.3f}m  RMSE={test_metrics['rmse']:.3f}m  δ<1.25={test_metrics['delta1']:.3f})  lr={current_lr:.2e}")
 
             # Save best checkpoint
             if val_loss < best_val_loss:

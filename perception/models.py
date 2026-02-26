@@ -56,7 +56,7 @@ class OrigUNet(nn.Module):
 
         self.out_conv = nn.Conv2d(32, 1, kernel_size=1)     # (N, 1, 64, 148)
         nn.init.zeros_(self.out_conv.weight)
-        nn.init.zeros_(self.out_conv.bias)
+        nn.init.constant_(self.out_conv.bias, -2.20)  # sigmoid(-2.20) ≈ 0.10 = midpoint of [0, 0.20] target range
 
         self.nonlin = nn.ReLU()
 
