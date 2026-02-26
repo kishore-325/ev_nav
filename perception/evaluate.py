@@ -42,7 +42,8 @@ def evaluate():
 
     saved_epoch    = ckpt.get('epoch', '?')
     saved_val_loss = ckpt.get('val_loss', '?')
-    print(f'\nLoaded best.pth  (epoch={saved_epoch}, val_loss={saved_val_loss:.6f})')
+    val_loss_str = f'{saved_val_loss:.6f}' if isinstance(saved_val_loss, float) else str(saved_val_loss)
+    print(f'\nLoaded checkpoint  (epoch={saved_epoch}, val_loss={val_loss_str})')
     print(f'Test samples: {len(test_dataset)}   Device: {DEVICE}\n')
 
     # ── Accumulate per-pixel predictions ──────────
