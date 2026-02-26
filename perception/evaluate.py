@@ -11,7 +11,7 @@ from perception.dataset import EventDepthDataset
 
 TEST_DATASETS_DIR = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Test')
 CKPT_PATH         = os.path.join(os.environ['PROJECT_PATH'], 'perception', 'checkpoints', 'best.pth')
-DEPTH_THRESH      = 0.99
+DEPTH_THRESH      = 0.20
 BATCH_SIZE        = 64
 WORKERS           = 4
 DEVICE            = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -22,7 +22,6 @@ BANDS = [
     ('0 - 5 m',   0.0,  0.05),
     ('5 - 10 m',  0.05, 0.10),
     ('10 - 20 m', 0.10, 0.20),
-    ('20 m+',     0.20, DEPTH_THRESH),
     ('Overall',   0.0,  DEPTH_THRESH),
 ]
 

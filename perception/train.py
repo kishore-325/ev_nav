@@ -25,7 +25,8 @@ PLOTS_DIR          = os.path.join(os.environ['PROJECT_PATH'], 'perception', 'plo
 EPOCHS        = 200
 BATCH_SIZE    = 64
 LR            = 1e-4
-DEPTH_THRESH  = 0.99   # ignore pixels with normalised depth > this (background)
+EARLY_STOPPING_PATIENCE = 10
+DEPTH_THRESH  = 0.20   # ignore pixels with normalised depth > this (background)
 WORKERS       = 4
 QUAL_EVERY    = 20        # save qualitative grid every N epochs
 QUAL_SAMPLES  = 4         # number of val samples to show in the grid
@@ -99,6 +100,10 @@ def run():
     print(f"Parameters: {n_params:,}")
 
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode='min', factor=0.5, patience=5
+    )
+    patience_counter = 0
 
     best_val_loss = float('inf')
 
@@ -107,7 +112,7 @@ def run():
     logger = csv.writer(log_file)
     logger.writerow(['epoch', 'train_loss',
                      'val_loss', 'val_mae_m', 'val_rmse_m', 'val_delta1',
-                     'test_loss', 'test_mae_m', 'test_rmse_m', 'test_delta1'])
+                     'test_loss', 'test_mae_m', 'test_rmse_m', 'test_delta1', 'lr'])
 
     # Tracking history for plots
     epochs_train = []
@@ -162,6 +167,11 @@ def run():
                     sum_rmse += m['rmse'] * n
                     sum_d1   += m['delta1'] * n
             val_loss /= n_val
+
+            # step scheduler
+            scheduler.step(val_loss)
+            current_lr = optimizer.param_groups[0]['lr']
+
             val_metrics = {'mae': sum_mae / n_val, 'rmse': sum_rmse / n_val, 'delta1': sum_d1 / n_val}
             epochs_val.append(epoch)
             losses_val.append(val_loss)
@@ -188,21 +198,27 @@ def run():
 
             logger.writerow([epoch, f'{train_loss:.6f}',
                              f'{val_loss:.6f}',  f"{val_metrics['mae']:.3f}",  f"{val_metrics['rmse']:.3f}",  f"{val_metrics['delta1']:.3f}",
-                             f'{test_loss:.6f}', f"{test_metrics['mae']:.3f}", f"{test_metrics['rmse']:.3f}", f"{test_metrics['delta1']:.3f}"])
+                             f'{test_loss:.6f}', f"{test_metrics['mae']:.3f}", f"{test_metrics['rmse']:.3f}", f"{test_metrics['delta1']:.3f}", f"{current_lr:.3f}"])
             log_file.flush()
 
             print(f"Epoch {epoch:04d}/{EPOCHS}  train={train_loss:.6f}  "
                   f"val={val_loss:.6f} (MAE={val_metrics['mae']:.3f}m  RMSE={val_metrics['rmse']:.3f}m  δ<1.25={val_metrics['delta1']:.3f})  "
-                  f"test={test_loss:.6f} (MAE={test_metrics['mae']:.3f}m  RMSE={test_metrics['rmse']:.3f}m  δ<1.25={test_metrics['delta1']:.3f})")
+                  f"test={test_loss:.6f} (MAE={test_metrics['mae']:.3f}m  RMSE={test_metrics['rmse']:.3f}m  δ<1.25={test_metrics['delta1']:.3f})  lr={current_lr:.3f}")
 
             # Save best checkpoint
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
+                patience_counter = 0
                 ckpt_path = os.path.join(CKPT_DIR, 'best.pth')
                 torch.save({'epoch': epoch, 'model': model.state_dict(),
                             'val_loss': val_loss, 'metrics': val_metrics}, ckpt_path)
                 print(f"    -> saved best checkpoint (val={val_loss:.6f})")
 
+            else:
+                patience_counter += 1
+                if patience_counter >= EARLY_STOPPING_PATIENCE:
+                    print(f"Early stopping at epoch {epoch} (no improvement for {EARLY_STOPPING_PATIENCE} val checks)")
+                    break
             # loss + metric curves (updated every val/test check)
             plot_curves(epochs_train, losses_train,
                         epochs_val,   losses_val,  metrics_val,
@@ -225,11 +241,12 @@ def run():
     plot_error_histogram(model, test_loader, DEVICE, PLOTS_DIR, thresh=DEPTH_THRESH)
 
     # Save final checkpoint
-    torch.save({'epoch': EPOCHS, 'model': model.state_dict()},
+    torch.save({'epoch': EPOCHS, 'model': model.state_dict(),
+                'val_loss': losses_val[-1] if losses_val else None},
                os.path.join(CKPT_DIR, 'final.pth'))
     total_secs = int(end - start)
     time_str = f"{total_secs // 3600}h {(total_secs % 3600) // 60}m {total_secs % 60}s"
-    logger.writerow(['# Time Taken', time_str, '', '', '', '', '', '', '', ''])
+    logger.writerow(['# Time Taken', time_str, '', '', '', '', '', '', '', '',''])
     log_file.close()
 
     print(f"Training complete.")
