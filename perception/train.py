@@ -85,17 +85,23 @@ def run():
     n_val   = len(val_dataset)
     n_test  = len(test_dataset)
 
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True,
+    n_gpus = torch.cuda.device_count() if torch.cuda.is_available() else 1
+    effective_batch = BATCH_SIZE * n_gpus
+
+    train_loader = DataLoader(train_dataset, batch_size=effective_batch, shuffle=True,
                               num_workers=WORKERS, pin_memory=True)
-    val_loader   = DataLoader(val_dataset,   batch_size=BATCH_SIZE, shuffle=False,
+    val_loader   = DataLoader(val_dataset,   batch_size=effective_batch, shuffle=False,
                               num_workers=WORKERS, pin_memory=True)
-    test_loader  = DataLoader(test_dataset,  batch_size=BATCH_SIZE, shuffle=False,
+    test_loader  = DataLoader(test_dataset,  batch_size=effective_batch, shuffle=False,
                               num_workers=WORKERS, pin_memory=True)
 
-    print(f'Train: {n_train}  Val: {n_val}  Test: {n_test}  Device: {DEVICE}')
+    print(f'Train: {n_train}  Val: {n_val}  Test: {n_test}  Device: {DEVICE}  GPU: {n_gpus}  BATCH: {effective_batch}')
 
     # ── Model ─────────────────────────────────
     model    = OrigUNet().to(DEVICE)
+    if torch.cuda.device_count() > 1:
+        print(f"Using {torch.cuda.device_count()} GPU's")
+        model = torch.nn.DataParallel(model)
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Parameters: {n_params:,}")
 
@@ -210,7 +216,8 @@ def run():
                 best_val_loss = val_loss
                 patience_counter = 0
                 ckpt_path = os.path.join(CKPT_DIR, 'best.pth')
-                torch.save({'epoch': epoch, 'model': model.state_dict(),
+                state = model.module.state_dict() if isinstance(model, torch.nn.DataParallel) else model.state_dict()
+                torch.save({'epoch': epoch, 'model': state,
                             'val_loss': val_loss, 'metrics': val_metrics}, ckpt_path)
                 print(f"    -> saved best checkpoint (val={val_loss:.6f})")
 
@@ -241,7 +248,8 @@ def run():
     plot_error_histogram(model, test_loader, DEVICE, PLOTS_DIR, thresh=DEPTH_THRESH)
 
     # Save final checkpoint
-    torch.save({'epoch': EPOCHS, 'model': model.state_dict(),
+    state = model.module.state_dict() if isinstance(model, torch.nn.DataParallel) else model.state_dict()
+    torch.save({'epoch': EPOCHS, 'model': state,
                 'val_loss': losses_val[-1] if losses_val else None},
                os.path.join(CKPT_DIR, 'final.pth'))
     total_secs = int(end - start)
