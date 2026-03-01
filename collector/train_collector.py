@@ -151,11 +151,11 @@ class DataCollector:
         capture_gap = 10
         pair_stride = capture_interval + capture_gap
         ref_gray = None    # shape = [num_envs, 260, 346]
-        sample_id = 0
-        config_num = 1
+        sample_id = 45164
+        config_num = 501
         start = time.time()
 
-        for step in range(max_steps):
+        for step in range(587132, max_steps):
 
             env.getObs()
             raw_obs = env._observation

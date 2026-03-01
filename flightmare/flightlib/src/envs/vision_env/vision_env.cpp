@@ -361,12 +361,17 @@ bool VisionEnv::readTrainingObs(std::string &csv_file, int obsNo) {
     logger_.error("[readTrainingObs] Configuration file %s does not exists.", csv_file);
     return false;
   }
-  // logger_.info("Changing Position!");
-  // logger_.info(std::to_string(_numRun));
+  // Count total rows to allow cycling
+  std::ifstream count_file(csv_file);
+  int total_rows = 0;
+  for (auto &row : CSVRange(count_file)) total_rows++;
+  if (total_rows == 0) return false;
+
+  int target = _numRun % total_rows;
   std::ifstream infile(csv_file);
-  int i=0;
+  int i = 0;
   for(auto &row: CSVRange(infile)){
-    if (i==_numRun){
+    if (i == target){
       
       Vector<3> pos;
       pos << std::stod((std::string)row[1]), std::stod((std::string)row[2]),
