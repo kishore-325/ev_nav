@@ -50,14 +50,14 @@ def gradient_loss(pred, target, thresh=DEPTH_THRESH):
     return loss_x + loss_y
 
 def combined_loss(pred, target, thresh=DEPTH_THRESH):
-    """Weighted MSE + gradient loss, masked to valid (non-background) pixels."""
     mask = (target >= 0) & (target <= thresh)
     weight = (1.0 + 1.0 / (target + 0.1)) * mask.float()
-    mse = (F.mse_loss(pred, target, reduction='none') * weight).mean()
+    diff = (pred-target).abs()
+    c = 0.2 * diff[mask].max().detach()
+    bh = torch.where(diff <= c, diff, (diff**2 + c**2) / (2*c))
+    main = (weight * bh).mean()
     grad = gradient_loss(pred, target, thresh)
-    return mse + 0.5 * grad
-    
-
+    return main + 0.5*grad
 
 
 def compute_metrics(pred, target, thresh=DEPTH_THRESH):
