@@ -60,5 +60,15 @@ class EventDepthDataset(Dataset):
         event = torch.from_numpy(event).unsqueeze(0)    # (1, 260, 346)
         depth = torch.from_numpy(depth).unsqueeze(0)    # (1, 260, 346)
 
+        # Horizontal flip
+        if torch.rand(1) < 0.5:
+            event = torch.flip(event, dims=[-1])
+            depth = torch.flip(depth, dims=[-1])
+
+        # Event Dropout
+        if torch.rand(1) < 0.3:
+            drop_mask = torch.rand_like(event) > 0.1
+            event = event * drop_mask
+
         return event, depth
     

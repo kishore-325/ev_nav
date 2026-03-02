@@ -25,7 +25,7 @@ PLOTS_DIR          = os.path.join(os.environ['PROJECT_PATH'], 'perception', 'plo
 EPOCHS        = 200
 BATCH_SIZE    = 64
 LR            = 1e-4
-EARLY_STOPPING_PATIENCE = 10
+EARLY_STOPPING_PATIENCE = 7
 DEPTH_THRESH  = 0.20   # ignore pixels with normalised depth > this (background)
 WORKERS       = 4
 QUAL_EVERY    = 20        # save qualitative grid every N epochs
@@ -37,12 +37,27 @@ DEVICE        = 'cuda' if torch.cuda.is_available() else 'cpu'
 # ──────────────────────────────────────────────
 # Loss / metrics
 # ──────────────────────────────────────────────
-def masked_mse(pred, target, thresh=DEPTH_THRESH):
-    """Plain MSE loss, masked to valid (non-background) pixels."""
-    mask = (target >= 0) & (target < thresh)
-    loss = F.mse_loss(pred, target, reduction='none')
-    loss = (loss * mask.float()).mean()
-    return loss
+def gradient_loss(pred, target, thresh=DEPTH_THRESH):
+    mask = (target >= 0) & (target <= thresh)
+    mask_x = mask[:, :, :, 1:] & mask[:, :, :, :-1]
+    mask_y = mask[:, :, 1:, :] & mask[:, :, :-1, :]
+    pred_dx = pred[:, :, :, 1:] - pred[:, :, :, :-1]
+    pred_dy = pred[:, :, 1:, :] - pred[:, :, :-1, :]
+    target_dx = target[:, :, :, 1:] - target[:, :, :, :-1]
+    target_dy = target[:, :, 1:, :] - target[:, :, :-1, :]
+    loss_x = (pred_dx - target_dx).abs()[mask_x].mean()
+    loss_y = (pred_dy - target_dy).abs()[mask_y].mean()
+    return loss_x + loss_y
+
+def combined_loss(pred, target, thresh=DEPTH_THRESH):
+    """Weighted MSE + gradient loss, masked to valid (non-background) pixels."""
+    mask = (target >= 0) & (target <= thresh)
+    weight = (1.0 + 1.0 / (target + 0.1)) * mask.float()
+    mse = (F.mse_loss(pred, target, reduction='none') * weight).mean()
+    grad = gradient_loss(pred, target, thresh)
+    return mse + 0.5 * grad
+    
+
 
 
 def compute_metrics(pred, target, thresh=DEPTH_THRESH):
@@ -53,7 +68,7 @@ def compute_metrics(pred, target, thresh=DEPTH_THRESH):
                    metric depth = value * 100 m
     Returns dict with keys 'mae', 'rmse', 'delta1'.
     """
-    mask = (target >= 0) & (target < thresh)
+    mask = (target >= 0) & (target <= thresh)
     if mask.sum() == 0:
         return {'mae': 0.0, 'rmse': 0.0, 'delta1': 0.0}
 
@@ -106,7 +121,7 @@ def run():
 
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='min', factor=0.5, patience=5
+        optimizer, mode='min', factor=0.5, patience=4
     )
     patience_counter = 0
 
@@ -141,7 +156,7 @@ def run():
             depth = depth.to(DEVICE)
 
             pred = model(event)
-            loss = masked_mse(pred, depth)
+            loss = combined_loss(pred, depth)
 
             optimizer.zero_grad()
             loss.backward()
@@ -166,7 +181,7 @@ def run():
                     event = event.to(DEVICE); depth = depth.to(DEVICE)
                     pred  = model(event)
                     n = event.size(0)
-                    val_loss += masked_mse(pred, depth).item() * n
+                    val_loss += combined_loss(pred, depth).item() * n
                     m = compute_metrics(pred, depth)
                     sum_mae  += m['mae']  * n
                     sum_rmse += m['rmse'] * n
@@ -190,7 +205,7 @@ def run():
                     event = event.to(DEVICE); depth = depth.to(DEVICE)
                     pred  = model(event)
                     n = event.size(0)
-                    test_loss += masked_mse(pred, depth).item() * n
+                    test_loss += combined_loss(pred, depth).item() * n
                     m = compute_metrics(pred, depth)
                     sum_mae  += m['mae']  * n
                     sum_rmse += m['rmse'] * n
