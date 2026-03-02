@@ -20,8 +20,8 @@ from perception.plot import (plot_curves, plot_qualitative,
 TRAIN_DATASETS_DIR = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Train')
 VAL_DATASETS_DIR   = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Val')
 TEST_DATASETS_DIR  = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Test')
-CKPT_DIR           = os.path.join(os.environ['PROJECT_PATH'], 'perception', 'checkpoints')
-PLOTS_DIR          = os.path.join(os.environ['PROJECT_PATH'], 'perception', 'plots')
+CKPT_DIR           = os.path.join('/home/srinivasan/ev_nav_run2', 'perception', 'checkpoints')
+PLOTS_DIR          = os.path.join('/home/srinivasan/ev_nav_run2', 'perception', 'plots')
 EPOCHS        = 200
 BATCH_SIZE    = 64
 LR            = 1e-4
