@@ -145,46 +145,104 @@ def plot_qualitative(model, test_loader, device, epoch, out_dir, n_samples=4, th
     plt.close(fig)
 
 
-def plot_scatter(model, test_loader, device, out_dir, thresh=0.99):
+def plot_scatter(model, test_loader, device, out_dir, thresh=0.99, bands=None):
     """
-    PLOT 3 — Scatter: predicted depth vs ground-truth depth (all valid pixels).
+    PLOT 3 — Scatter: predicted depth vs ground-truth depth.
+
+    If bands is None: single monochrome scatter (all valid pixels, capped at 50k).
+    If bands is provided (list of (label, lo, hi) in normalised units):
+      single scatter with each band coloured differently (8k pixels per band),
+      showing the full depth range on one axis so cross-band bias is visible.
 
     Perfect predictor → all points on red dashed y=x line.
-    Systematic bias:
-      Points above y=x → model over-estimates distance
-      Points below y=x → model under-estimates distance
-    Clustering of errors at specific depth ranges reveals where the model struggles.
-
-    Capped at 50 000 pixels for readability.
     """
     model.eval()
-    all_pred, all_gt = [], []
+
+    if bands is None:
+        # ── single overall scatter ──────────────────────────────────────────
+        all_pred, all_gt = [], []
+        with torch.no_grad():
+            for event, depth in test_loader:
+                event, depth = event.to(device), depth.to(device)
+                pred = model(event)
+                mask = (depth >= 0) & (depth < thresh)
+                all_pred.append(pred[mask].cpu().numpy() * 100.0)
+                all_gt.append(depth[mask].cpu().numpy()  * 100.0)
+
+        all_pred = np.concatenate(all_pred)
+        all_gt   = np.concatenate(all_gt)
+
+        if len(all_pred) > 50_000:
+            idx      = np.random.default_rng(0).choice(len(all_pred), 50_000, replace=False)
+            all_pred = all_pred[idx]
+            all_gt   = all_gt[idx]
+
+        fig, ax = plt.subplots(figsize=(6, 6))
+        ax.scatter(all_gt, all_pred, alpha=0.2, s=1, color='steelblue', rasterized=True)
+        lim = max(all_gt.max(), all_pred.max()) * 1.05
+        ax.plot([0, lim], [0, lim], 'r--', linewidth=1.5, label='y = x  (perfect)')
+        ax.set_xlim(0, lim)
+        ax.set_ylim(0, lim)
+        ax.set_xlabel('GT Depth (m)')
+        ax.set_ylabel('Predicted Depth (m)')
+        ax.set_title('Predicted vs Ground-Truth Depth\n(valid pixels, test set)')
+        ax.legend(fontsize=9)
+        ax.grid(True, alpha=0.3)
+        ax.set_aspect('equal')
+        fig.tight_layout()
+        fig.savefig(os.path.join(out_dir, 'scatter.png'), dpi=120)
+        plt.close(fig)
+        return
+
+    # ── multi-colour scatter: one colour per band, shared axes ─────────────
+    # Skip 'Overall' band to avoid double-counting on the plot
+    plot_bands = [(label, lo, hi) for label, lo, hi in bands if label != 'Overall']
+
+    band_pred = {label: [] for label, *_ in plot_bands}
+    band_gt   = {label: [] for label, *_ in plot_bands}
+
     with torch.no_grad():
         for event, depth in test_loader:
             event, depth = event.to(device), depth.to(device)
             pred = model(event)
-            mask = (depth >= 0) & (depth < thresh)
-            all_pred.append(pred[mask].cpu().numpy() * 100.0)
-            all_gt.append(depth[mask].cpu().numpy()  * 100.0)
+            for label, lo, hi in plot_bands:
+                mask = (depth >= lo) & (depth < hi)
+                band_pred[label].append(pred[mask].cpu().numpy() * 100.0)
+                band_gt[label].append(depth[mask].cpu().numpy()  * 100.0)
 
-    all_pred = np.concatenate(all_pred)
-    all_gt   = np.concatenate(all_gt)
+    for label in band_pred:
+        band_pred[label] = np.concatenate(band_pred[label]) if band_pred[label] else np.array([])
+        band_gt[label]   = np.concatenate(band_gt[label])   if band_gt[label]   else np.array([])
 
-    if len(all_pred) > 50_000:
-        idx      = np.random.default_rng(0).choice(len(all_pred), 50_000, replace=False)
-        all_pred = all_pred[idx]
-        all_gt   = all_gt[idx]
+    # Subsample each band independently so dense bands don't dominate
+    rng = np.random.default_rng(0)
+    PER_BAND = 8_000
+    for label in band_pred:
+        n = len(band_pred[label])
+        if n > PER_BAND:
+            idx = rng.choice(n, PER_BAND, replace=False)
+            band_pred[label] = band_pred[label][idx]
+            band_gt[label]   = band_gt[label][idx]
 
-    fig, ax = plt.subplots(figsize=(6, 6))
-    ax.scatter(all_gt, all_pred, alpha=0.2, s=1, color='steelblue', rasterized=True)
-    lim = max(all_gt.max(), all_pred.max()) * 1.05
-    ax.plot([0, lim], [0, lim], 'r--', linewidth=1.5, label='y = x  (perfect)')
+    colors = plt.cm.tab10(np.linspace(0, 0.9, len(plot_bands)))
+    lim = thresh * 100.0 * 1.05
+
+    fig, ax = plt.subplots(figsize=(7, 7))
+    for i, (label, lo, hi) in enumerate(plot_bands):
+        gts   = band_gt[label]
+        preds = band_pred[label]
+        if len(gts) == 0:
+            continue
+        ax.scatter(gts, preds, alpha=0.25, s=2, color=colors[i],
+                   label=label, rasterized=True)
+
+    ax.plot([0, lim], [0, lim], 'r--', linewidth=1.5, label='y = x  (perfect)', zorder=5)
     ax.set_xlim(0, lim)
     ax.set_ylim(0, lim)
     ax.set_xlabel('GT Depth (m)')
     ax.set_ylabel('Predicted Depth (m)')
-    ax.set_title('Predicted vs Ground-Truth Depth\n(valid pixels, test set)')
-    ax.legend(fontsize=9)
+    ax.set_title('Predicted vs Ground-Truth Depth by Band\n(test set, ~8k pts/band)')
+    ax.legend(fontsize=8, markerscale=4)
     ax.grid(True, alpha=0.3)
     ax.set_aspect('equal')
     fig.tight_layout()

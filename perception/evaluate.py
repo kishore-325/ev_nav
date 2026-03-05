@@ -19,9 +19,12 @@ DEVICE            = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # Depth bands in normalised linear units (value × 100 = metres)
 BANDS = [
-    ('0 - 5 m',   0.0,  0.05),
-    ('5 - 10 m',  0.05, 0.10),
-    ('10 - 20 m', 0.10, 0.20),
+    ('0 - 2.5 m',   0.0,  0.025),
+    ('2.5 - 5 m',  0.025, 0.05),
+    ('5 - 7.5 m', 0.05, 0.075),
+    ('7.5 m - 10 m', 0.075, 0.10),
+    ('10 - 15 m', 0.1, 0.15),
+    ('15 - 20 m', 0.15, 0.20),
     ('Overall',   0.0,  DEPTH_THRESH),
 ]
 
@@ -73,22 +76,31 @@ def evaluate():
                 acc[label]['n']       += n
 
     # ── Print results ─────────────────────────────
-    print(f"{'Depth Band':<14} {'Pixels':>10}  {'MAE (m)':>9}  {'RMSE (m)':>9}  {'delta1':>8}")
-    print('─' * 58)
+    L, P, M, R, D = 14, 12, 9, 9, 8  # column content widths
+
+    def _sep(l='├', m='┼', r='┤', f='─'):
+        return l + f*(L+2) + m + f*(P+2) + m + f*(M+2) + m + f*(R+2) + m + f*(D+2) + r
+
+    def _row(lbl, pix, mae, rmse, d1):
+        return f'│ {lbl:<{L}} │ {pix:>{P}} │ {mae:>{M}} │ {rmse:>{R}} │ {d1:>{D}} │'
+
+    print()
+    print(_sep('┌', '┬', '┐'))
+    print(_row('Depth Band', 'Pixels', 'MAE (m)', 'RMSE (m)', 'delta1'))
+    print(_sep())
     for label, *_ in BANDS:
         a = acc[label]
         n = a['n']
+        if label == 'Overall':
+            print(_sep())
         if n == 0:
-            print(f"{label:<14} {'0':>10}  {'N/A':>9}  {'N/A':>9}  {'N/A':>8}")
+            print(_row(label, '0', 'N/A', 'N/A', 'N/A'))
             continue
         mae    = a['sum_mae'] / n
         rmse   = (a['sum_sq']  / n) ** 0.5
         delta1 = a['sum_d1']  / n
-        sep = '═' * 58 if label == 'Overall' else ''
-        if sep:
-            print(sep)
-        print(f"{label:<14} {n:>10,}  {mae:>9.3f}  {rmse:>9.3f}  {delta1:>8.3f}")
-
+        print(_row(label, f'{n:,}', f'{mae:.3f}', f'{rmse:.3f}', f'{delta1:.3f}'))
+    print(_sep('└', '┴', '┘'))
     print()
 
 

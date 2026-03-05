@@ -255,11 +255,25 @@ def run():
         else:
             print(f'Epoch {epoch}/{EPOCHS}  train={train_loss:.6f}')
 
-    # ── End-of-training plots ─────────────────
+    # ── End-of-training plots (reload best checkpoint) ────────────────────
     end = time.time()
     print("Generating final diagnostic plots …")
-    plot_scatter(model, test_loader, DEVICE, PLOTS_DIR, thresh=DEPTH_THRESH)
-    plot_error_histogram(model, test_loader, DEVICE, PLOTS_DIR, thresh=DEPTH_THRESH)
+    best_ckpt_path = os.path.join(CKPT_DIR, 'best.pth')
+    best_ckpt = torch.load(best_ckpt_path, map_location=DEVICE)
+    plot_model = OrigUNet().to(DEVICE)
+    plot_model.load_state_dict(best_ckpt['model'])
+    print(f"  (using best.pth — epoch={best_ckpt.get('epoch','?')}, val_loss={best_ckpt.get('val_loss', '?'):.6f})")
+    scatter_bands = [
+        ('0 - 2.5 m',   0.0,   0.025),
+        ('2.5 - 5 m',   0.025, 0.05),
+        ('5 - 7.5 m',   0.05,  0.075),
+        ('7.5 - 10 m',  0.075, 0.10),
+        ('10 - 15 m',   0.1,   0.15),
+        ('15 - 20 m',   0.15,  DEPTH_THRESH),
+        ('Overall',     0.0,   DEPTH_THRESH),
+    ]
+    plot_scatter(plot_model, test_loader, DEVICE, PLOTS_DIR, thresh=DEPTH_THRESH, bands=scatter_bands)
+    plot_error_histogram(plot_model, test_loader, DEVICE, PLOTS_DIR, thresh=DEPTH_THRESH)
 
     # Save final checkpoint
     state = model.module.state_dict() if isinstance(model, torch.nn.DataParallel) else model.state_dict()
