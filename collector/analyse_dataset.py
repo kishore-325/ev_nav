@@ -5,8 +5,18 @@ import time
 import numpy as np
 
 
-DEPTH_THRESH = 0.99   # same as train.py — pixels >= this are background
+DEPTH_THRESH = 0.20   # same as train.py — pixels >= this are background (20 m)
 DEPTH_SCALE  = 100.0  # normalised [0,1] -> metres
+
+# Depth bands matching evaluate.py BANDS (in metres)
+BANDS = [
+    ('0 - 2.5 m',  0.0,   2.5),
+    ('2.5 - 5 m',  2.5,   5.0),
+    ('5 - 7.5 m',  5.0,   7.5),
+    ('7.5 - 10 m', 7.5,  10.0),
+    ('10 - 15 m', 10.0,  15.0),
+    ('15 - 20 m', 15.0,  20.0),
+]
 
 
 def analyse_split(split_name, dataset_dir):
@@ -38,60 +48,74 @@ def analyse_split(split_name, dataset_dir):
     all_valid = np.concatenate(all_valid)
     total_pixels = len(all_valid)
 
-    pct_0_15  = float((all_valid < 15).mean()                              * 100)
-    pct_15_40 = float(((all_valid >= 15) & (all_valid < 40)).mean()        * 100)
-    pct_40p   = float((all_valid >= 40).mean()                             * 100)
     depth_min    = float(all_valid.min())
     depth_max    = float(all_valid.max())
     depth_mean   = float(all_valid.mean())
     depth_median = float(np.median(all_valid))
 
+    # Per-band pixel counts and percentages
+    band_pcts = {}
+    for label, lo, hi in BANDS:
+        count = int(((all_valid >= lo) & (all_valid < hi)).sum())
+        band_pcts[label] = (count, count / total_pixels * 100)
+
+    # ── Box-drawing table ──────────────────────────────────────────
+    L, P, PC = 12, 14, 8   # column widths: label, pixels, percent
+
+    def _sep(l='├', m='┼', r='┤', f='─'):
+        return l + f*(L+2) + m + f*(P+2) + m + f*(PC+2) + r
+
+    def _row(lbl, pix, pct):
+        return f'│ {lbl:<{L}} │ {pix:>{P}} │ {pct:>{PC}} │'
+
+    print(f"\n  Split : {split_name}   Samples : {n_samples:,}")
+    print(f"  Valid pixels (< {DEPTH_THRESH*100:.0f} m) : {total_pixels:,}")
+    print(f"  Depth range  : {depth_min:.1f} m – {depth_max:.1f} m")
+    print(f"  Mean / Median: {depth_mean:.2f} m / {depth_median:.2f} m")
+    print()
+    print(_sep('┌', '┬', '┐'))
+    print(_row('Band', 'Pixels', '%'))
+    print(_sep())
+    for label, lo, hi in BANDS:
+        count, pct = band_pcts[label]
+        print(_row(label, f'{count:,}', f'{pct:.1f}%'))
+    print(_sep('└', '┴', '┘'))
+    print()
+
     summary = {
-        'split':         split_name,
-        'samples':       n_samples,
-        'valid_pixels':  total_pixels,
-        'pct_0_15m':     pct_0_15,
-        'pct_15_40m':    pct_15_40,
-        'pct_40m_plus':  pct_40p,
-        'depth_min_m':   depth_min,
-        'depth_max_m':   depth_max,
-        'depth_mean_m':  depth_mean,
-        'depth_median_m':depth_median,
+        'split':          split_name,
+        'samples':        n_samples,
+        'valid_pixels':   total_pixels,
+        'depth_min_m':    depth_min,
+        'depth_max_m':    depth_max,
+        'depth_mean_m':   depth_mean,
+        'depth_median_m': depth_median,
+        **{f'pct_{label}': pct for label, (_, pct) in band_pcts.items()},
     }
 
-    # --- print to console ---
-    print(f"\n{'='*45}")
-    print(f"  Dataset split : {split_name}")
-    print(f"  Samples       : {n_samples:,}")
-    print(f"  Valid pixels  : {total_pixels:,}")
-    print(f"  Depth range   : {depth_min:.1f}m – {depth_max:.1f}m")
-    print(f"  Mean / Median : {depth_mean:.2f}m / {depth_median:.2f}m")
-    print(f"  Distribution  :")
-    print(f"    0 – 15 m    : {pct_0_15:.1f}%")
-    print(f"    15 – 40 m   : {pct_15_40:.1f}%")
-    print(f"    40 m+       : {pct_40p:.1f}%")
-    print(f"{'='*45}\n")
-
-    # --- save CSV log ---
-    log_dir = os.path.join(dataset_dir, 'logs')
+    # ── Save CSV log ───────────────────────────────────────────────
+    log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dataset_analysis')
     os.makedirs(log_dir, exist_ok=True)
-    log_path = os.path.join(log_dir, f"analysis_{time.strftime('%Y%m%d_%H%M%S')}.csv")
+    log_path = os.path.join(log_dir, f"analysis_{split_name}_{time.strftime('%Y%m%d_%H%M%S')}.csv")
 
     with open(log_path, 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['timestamp', 'elapsed_time_s', 'message'])
-        ts      = time.strftime('%Y-%m-%d %H:%M:%S')
-        start_t = time.time()
+        writer.writerow(['timestamp', 'key', 'value'])
+        ts = time.strftime('%Y-%m-%d %H:%M:%S')
         rows = [
-            f"split={split_name}",
-            f"samples={n_samples}",
-            f"valid_pixels={total_pixels}",
-            f"depth_range={depth_min:.2f}m-{depth_max:.2f}m",
-            f"mean={depth_mean:.2f}m  median={depth_median:.2f}m",
-            f"0-15m={pct_0_15:.1f}%  15-40m={pct_15_40:.1f}%  40m+={pct_40p:.1f}%",
+            ('split',        split_name),
+            ('samples',      n_samples),
+            ('valid_pixels', total_pixels),
+            ('depth_min_m',  f'{depth_min:.2f}'),
+            ('depth_max_m',  f'{depth_max:.2f}'),
+            ('depth_mean_m', f'{depth_mean:.2f}'),
+            ('depth_median_m', f'{depth_median:.2f}'),
         ]
-        for r in rows:
-            writer.writerow([ts, f'{time.time()-start_t:.3f}', r])
+        for label, lo, hi in BANDS:
+            count, pct = band_pcts[label]
+            rows.append((f'pct_{label}', f'{pct:.1f}%'))
+        for key, val in rows:
+            writer.writerow([ts, key, val])
 
     print(f"[{split_name}] Log saved to {log_path}")
     return summary
@@ -104,19 +128,43 @@ def main():
     val_dir   = os.path.join(project_path, 'datasets', 'Val')
     test_dir  = os.path.join(project_path, 'datasets', 'Test')
 
-    train_summary = analyse_split('Train', train_dir)
-    val_summary   = analyse_split('Val',   val_dir)
-    test_summary  = analyse_split('Test',  test_dir)
+    summaries = {}
+    for name, d in [('Train', train_dir), ('Val', val_dir), ('Test', test_dir)]:
+        s = analyse_split(name, d)
+        if s:
+            summaries[name] = s
 
-    summaries = {k: v for k, v in [('Train', train_summary), ('Val', val_summary), ('Test', test_summary)] if v}
-    if summaries:
+    if len(summaries) > 1:
         cols = list(summaries.keys())
-        print("Summary comparison:")
-        print(f"  {'':12s}  " + "  ".join(f"{c:>10s}" for c in cols))
-        print(f"  {'Samples':12s}  " + "  ".join(f"{summaries[c]['samples']:>10,}" for c in cols))
-        print(f"  {'0-15m %':12s}  " + "  ".join(f"{summaries[c]['pct_0_15m']:>9.1f}%" for c in cols))
-        print(f"  {'15-40m %':12s}  " + "  ".join(f"{summaries[c]['pct_15_40m']:>9.1f}%" for c in cols))
-        print(f"  {'40m+ %':12s}  " + "  ".join(f"{summaries[c]['pct_40m_plus']:>9.1f}%" for c in cols))
+        L2, P2 = 12, 10
+
+        def _sep2(l='├', m='┼', r='┤', f='─'):
+            return l + f*(L2+2) + (m + f*(P2+2)) * len(cols) + r
+
+        def _row2(lbl, *vals):
+            return '│ ' + f'{lbl:<{L2}}' + ' │' + ''.join(f' {v:>{P2}} │' for v in vals)
+
+        lines = [
+            '\nComparison across splits:',
+            _sep2('┌', '┬', '┐'),
+            _row2('Band', *cols),
+            _sep2(),
+        ]
+        for label, lo, hi in BANDS:
+            vals = [f"{summaries[c][f'pct_{label}']:.1f}%" for c in cols]
+            lines.append(_row2(label, *vals))
+        lines.append(_sep2('└', '┴', '┘'))
+
+        for line in lines:
+            print(line)
+
+        # Save comparison table to collector/dataset_analysis/
+        analysis_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dataset_analysis')
+        os.makedirs(analysis_dir, exist_ok=True)
+        cmp_path = os.path.join(analysis_dir, f"comparison_{time.strftime('%Y%m%d_%H%M%S')}.txt")
+        with open(cmp_path, 'w') as f:
+            f.write('\n'.join(lines) + '\n')
+        print(f"\nComparison saved to {cmp_path}")
 
 
 if __name__ == '__main__':
