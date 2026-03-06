@@ -51,7 +51,7 @@ def gradient_loss(pred, target, thresh=DEPTH_THRESH):
 
 def combined_loss(pred, target, thresh=DEPTH_THRESH):
     mask = (target >= 0) & (target <= thresh)
-    weight = (1.0 + 1.0 / (target + 0.1)) * mask.float()
+    weight = (1.0 / (target + 0.02)) * mask.float()
     diff = (pred-target).abs()
     c = 0.2 * diff[mask].max().detach()
     bh = torch.where(diff <= c, diff, (diff**2 + c**2) / (2*c))
