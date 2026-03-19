@@ -49,15 +49,15 @@ def gradient_loss(pred, target, thresh=DEPTH_THRESH):
     loss_y = (pred_dy - target_dy).abs()[mask_y].mean()
     return loss_x + loss_y
 
-def combined_loss(pred, target, thresh=DEPTH_THRESH):
+def combined_loss(pred, target, thresh=DEPTH_THRESH, weight_offset=0.02, berhu_c_frac=0.2, grad_weight=0.5):
     mask = (target >= 0) & (target <= thresh)
-    weight = (1.0 / (target + 0.02)) * mask.float()
+    weight = (1.0 / (target + weight_offset)) * mask.float()
     diff = (pred-target).abs()
-    c = 0.2 * diff[mask].max().detach()
+    c = berhu_c_frac * diff[mask].max().detach()
     bh = torch.where(diff <= c, diff, (diff**2 + c**2) / (2*c))
     main = (weight * bh).mean()
     grad = gradient_loss(pred, target, thresh)
-    return main + 0.5*grad
+    return main + grad_weight*grad
 
 
 def compute_metrics(pred, target, thresh=DEPTH_THRESH):
