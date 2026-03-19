@@ -10,6 +10,7 @@ sys.path.append(os.environ['FLIGHTMARE_PATH'])
 sys.path.append(os.environ['PROJECT_PATH'])
 
 import optuna
+import optuna.visualization as vis
 from optuna.pruners import MedianPruner
 
 from perception.models import OrigUNet
@@ -18,7 +19,8 @@ from perception.train import combined_loss, compute_metrics, gradient_loss
 
 # CONFIG
 TRAIN_DATASETS_DIR = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Train')
-VAL_DATASETS_DIR = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Val')
+VAL_DATASETS_DIR   = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Val')
+PLOTS_DIR          = os.path.join('/home/srinivasan/ev_nav_run2', 'perception', 'plots')
 EPOCHS       = 200
 BATCH_SIZE   = 64
 DEPTH_THRESH = 0.20
@@ -146,15 +148,15 @@ def objective(trial):
                          f'{berhu_c_frac:.4f}', f'{grad_weight:.4f}'])
         log_file.flush()
 
-    # Print trial summary
-    print(f"\n{'='*60}")
-    print(f"Trial {trial.number} complete")
-    print(f"  Best Epoch: {best_epoch}")
-    print(f"  Best val_loss: {best_val_loss:.6f}")
-    print(f"  Best Train_loss : {best_train_loss:.6f}")
-    print(f"  Params: lr={lr:.2e}, weight_offset={weight_offset:.4f}, "
-          f"berhu_c_frac={berhu_c_frac:.4f}, grad_weight={grad_weight:.4f}")
-    print(f"{'='*60}\n")
+        # Print trial summary
+        print(f"\n{'='*60}")
+        print(f"Trial {trial.number} complete")
+        print(f"  Best Epoch: {best_epoch}")
+        print(f"  Best val_loss: {best_val_loss:.6f}")
+        print(f"  Best Train_loss : {best_train_loss:.6f}")
+        print(f"  Params: lr={lr:.2e}, weight_offset={weight_offset:.4f}, "
+            f"berhu_c_frac={berhu_c_frac:.4f}, grad_weight={grad_weight:.4f}")
+        print(f"{'='*60}\n")
 
     return best_val_loss 
 
@@ -179,6 +181,21 @@ if __name__ == '__main__':
         print(f"  {k}:  {v}")
     print("="*60)
 
+    # Optimization history
+    fig = vis.plot_optimization_history(study)
+    fig.write_image(os.path.join(PLOTS_DIR, 'optuna_history.png'))
+
+    # Parameter importances
+    fig = vis.plot_param_importances(study)
+    fig.write_image(os.path.join(PLOTS_DIR, 'optuna_importances.png'))
+
+    # Slice Plot
+    fig = vis.plot_slice(study)
+    fig.write_image(os.path.join(PLOTS_DIR, 'optuna_slice.png'))
+
+    # Contour
+    fig = vis.plot_contour(study)
+    fig.write_image(os.path.join(PLOTS_DIR, 'optuna_contour.png'))
 
     
 
