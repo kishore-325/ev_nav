@@ -1,4 +1,5 @@
 datasets/
+datasets_2/
 __pycache__/
 *.pyc
 flightmare/flightlib/build/
