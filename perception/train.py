@@ -1,9 +1,11 @@
 import os
 import sys
 import csv
+import time
+import optuna
+
 import torch
 import torch.nn.functional as F
-import time
 from torch.utils.data import DataLoader
 
 sys.path.append(os.environ['FLIGHTMARE_PATH'])
@@ -24,15 +26,31 @@ CKPT_DIR           = os.path.join('/home/srinivasan/ev_nav_run2', 'perception', 
 PLOTS_DIR          = os.path.join('/home/srinivasan/ev_nav_run2', 'perception', 'plots')
 EPOCHS        = 200
 BATCH_SIZE    = 64
-LR            = 1e-4
 EARLY_STOPPING_PATIENCE = 7
 DEPTH_THRESH  = 0.20   # ignore pixels with normalised depth > this (background)
+WEIGHT_OFFSET = 0.02
 WORKERS       = 4
 QUAL_EVERY    = 20        # save qualitative grid every N epochs
 QUAL_SAMPLES  = 4         # number of val samples to show in the grid
 QUAL_SKIP     = 2         # number of batches to skip before sampling the qual grid
 DEVICE        = 'cuda' if torch.cuda.is_available() else 'cpu'
 
+# ──────────────────────────────────────────────
+# Optuna (load best params if study exists)
+# ──────────────────────────────────────────────
+try:
+    study = optuna.load_study(study_name='unet_depth_optuna2', storage='sqlite:///optuna_study_run2.db')
+    best = study.best_params
+    LR            = best['lr']
+    BERHU_C_FRAC  = best['berhu_c_frac']
+    GRAD_WEIGHT   = best['grad_weight']
+    print(f"Loaded Optuna best params: lr={LR:.2e}, "
+          f"berhu_c_frac={BERHU_C_FRAC:.4f}, grad_weight={GRAD_WEIGHT:.4f}")
+except Exception:
+    LR            = 1e-4
+    BERHU_C_FRAC  = 0.2
+    GRAD_WEIGHT   = 0.5
+    print("No Optuna study found, using default hyperparameters.")
 
 # ──────────────────────────────────────────────
 # Loss / metrics
@@ -49,15 +67,15 @@ def gradient_loss(pred, target, thresh=DEPTH_THRESH):
     loss_y = (pred_dy - target_dy).abs()[mask_y].mean()
     return loss_x + loss_y
 
-def combined_loss(pred, target, thresh=DEPTH_THRESH):
+def combined_loss(pred, target, thresh=DEPTH_THRESH, weight_offset=0.02, berhu_c_frac=0.2, grad_weight=0.5):
     mask = (target >= 0) & (target <= thresh)
-    weight = (1.0 / (target + 0.02)) * mask.float()
+    weight = (1.0 / (target + weight_offset)) * mask.float()
     diff = (pred-target).abs()
-    c = 0.2 * diff[mask].max().detach()
+    c = berhu_c_frac * diff[mask].max().detach()
     bh = torch.where(diff <= c, diff, (diff**2 + c**2) / (2*c))
     main = (weight * bh).mean()
     grad = gradient_loss(pred, target, thresh)
-    return main + 0.5*grad
+    return main + grad_weight*grad
 
 
 def compute_metrics(pred, target, thresh=DEPTH_THRESH):
@@ -156,7 +174,10 @@ def run():
             depth = depth.to(DEVICE)
 
             pred = model(event)
-            loss = combined_loss(pred, depth)
+            loss = combined_loss(pred, depth,
+                                 weight_offset=WEIGHT_OFFSET,
+                                 berhu_c_frac=BERHU_C_FRAC,
+                                 grad_weight=GRAD_WEIGHT)
 
             optimizer.zero_grad()
             loss.backward()
@@ -181,7 +202,11 @@ def run():
                     event = event.to(DEVICE); depth = depth.to(DEVICE)
                     pred  = model(event)
                     n = event.size(0)
-                    val_loss += combined_loss(pred, depth).item() * n
+                    val_loss += combined_loss(pred, depth,
+                                 weight_offset=WEIGHT_OFFSET,
+                                 berhu_c_frac=BERHU_C_FRAC,
+                                 grad_weight=GRAD_WEIGHT).item() * n
+                    
                     m = compute_metrics(pred, depth)
                     sum_mae  += m['mae']  * n
                     sum_rmse += m['rmse'] * n
@@ -205,7 +230,11 @@ def run():
                     event = event.to(DEVICE); depth = depth.to(DEVICE)
                     pred  = model(event)
                     n = event.size(0)
-                    test_loss += combined_loss(pred, depth).item() * n
+                    test_loss += combined_loss(pred, depth,
+                                 weight_offset=WEIGHT_OFFSET,
+                                 berhu_c_frac=BERHU_C_FRAC,
+                                 grad_weight=GRAD_WEIGHT).item() * n
+                    
                     m = compute_metrics(pred, depth)
                     sum_mae  += m['mae']  * n
                     sum_rmse += m['rmse'] * n
