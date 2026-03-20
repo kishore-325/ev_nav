@@ -25,6 +25,7 @@ PLOTS_DIR          = os.path.join('/home/srinivasan/ev_nav_run2', 'perception', 
 EPOCHS       = 200
 BATCH_SIZE   = 64
 DEPTH_THRESH = 0.20
+WEIGHT_OFFSET = 0.02
 WORKERS      = 4
 DEVICE       = 'cuda' if torch.cuda.is_available() else 'cpu'
 EARLY_STOPPING_PATIENCE = 7
@@ -44,8 +45,8 @@ n_val = len(val_dataset)
 LOG_PATH = os.path.join('/home/srinivasan/ev_nav_run2', 'perception', 'plots', 'tune_log.csv')
 log_file = open(LOG_PATH, 'w', newline='')
 logger = csv.writer(log_file)
-logger.writerow(['trial', 'best_epoch', 'train_loss', 'val_loss', 'lr',
-                 'weight_offset', 'berhu_c_frac', 'grad_weight'])
+logger.writerow(['trial', 'best_epoch', 'train_loss', 'val_loss', 'val_mae',
+                 'lr', 'berhu_c_frac', 'grad_weight'])
 
 n_gpus = min(torch.cuda.device_count() if torch.cuda.is_available() else 1, 4)
 effective_batch = BATCH_SIZE * n_gpus
@@ -63,7 +64,6 @@ def objective(trial):
     
     # 1. Sample hyperparameters
     lr             = trial.suggest_float("lr", 1e-5, 1e-3, log=True)
-    weight_offset  = trial.suggest_float("weight_offset", 0.01, 0.2)
     berhu_c_frac   = trial.suggest_float("berhu_c_frac", 0.05, 0.5)
     grad_weight    = trial.suggest_float("grad_weight", 0.0, 2.0)
 
@@ -78,6 +78,7 @@ def objective(trial):
     )
 
     # 3. Training loop
+    best_val_mae = float('inf')
     best_val_loss = float('inf')
     best_epoch = 0
     best_train_loss = float('inf')
@@ -94,7 +95,7 @@ def objective(trial):
                 event, depth = event.to(DEVICE), depth.to(DEVICE)
                 pred = model(event)
                 loss = combined_loss(pred, depth,
-                                     weight_offset=weight_offset,
+                                     weight_offset=WEIGHT_OFFSET,
                                      berhu_c_frac=berhu_c_frac,
                                      grad_weight=grad_weight)
                 optimizer.zero_grad()
@@ -108,25 +109,30 @@ def objective(trial):
             if epoch % 5 == 0:
                 model.eval()
                 val_loss = 0.0
+                val_mae  = 0.0
                 with torch.no_grad():
                     for event, depth in val_loader:
                         event, depth = event.to(DEVICE), depth.to(DEVICE)
                         pred = model(event)
+                        n = event.size(0)
                         val_loss += combined_loss(pred, depth,
-                                                  weight_offset=weight_offset,
+                                                  weight_offset=WEIGHT_OFFSET,
                                                   berhu_c_frac=berhu_c_frac,
-                                                  grad_weight=grad_weight).item() * event.size(0)
+                                                  grad_weight=grad_weight).item() * n
+                        val_mae += compute_metrics(pred, depth)['mae'] * n
                 val_loss /= n_val
+                val_mae  /= n_val
                 scheduler.step(val_loss)
 
-                # 4. Report to Optuna for pruning
-                trial.report(val_loss, epoch)
+                # 4. Report MAE to Optuna for pruning
+                trial.report(val_mae, epoch)
                 if trial.should_prune():
                     was_pruned = True
                     raise optuna.TrialPruned()
 
-                # Early stopping
-                if val_loss < best_val_loss:
+                # Early stopping on val MAE
+                if val_mae < best_val_mae:
+                    best_val_mae = val_mae
                     best_val_loss = val_loss
                     best_epoch = epoch
                     best_train_loss = train_loss
@@ -137,7 +143,7 @@ def objective(trial):
                         break
 
                 print(f"    Trial  {trial.number}  |  Epoch  {epoch}/{EPOCHS}  |  "
-                  f"train = {train_loss:.6f}  |  val = {val_loss:.6f}")
+                  f"train = {train_loss:.6f}  |  val_loss = {val_loss:.6f}  |  val_mae = {val_mae:.3f}m")
 
             else:
                 print(f"    Trial  {trial.number}  |  Epoch  {epoch}/{EPOCHS}  |  "
@@ -147,8 +153,8 @@ def objective(trial):
         # Logs even if pruned
         logger.writerow([trial.number, best_epoch,
                          f'{best_train_loss:.6f}', f'{best_val_loss:.6f}',
-                         f'{lr:.2e}', f'{weight_offset:.4f}',
-                         f'{berhu_c_frac:.4f}', f'{grad_weight:.4f}'])
+                         f'{best_val_mae:.3f}',
+                         f'{lr:.2e}', f'{berhu_c_frac:.4f}', f'{grad_weight:.4f}'])
         log_file.flush()
 
         # Print trial summary
@@ -157,19 +163,20 @@ def objective(trial):
         print(f"\n{'='*60}")
         print(f"Trial {trial.number} complete")
         print(f"  Best Epoch: {best_epoch}")
+        print(f"  Best val_mae: {best_val_mae:.3f}m")
         print(f"  Best val_loss: {best_val_loss:.6f}")
         print(f"  Best Train_loss : {best_train_loss:.6f}")
-        print(f"  Params: lr={lr:.2e}, weight_offset={weight_offset:.4f}, "
+        print(f"  Params: lr={lr:.2e}, "
             f"berhu_c_frac={berhu_c_frac:.4f}, grad_weight={grad_weight:.4f}")
         print(f"{'='*60}\n")
 
-    return best_val_loss 
+    return best_val_mae
 
 # Run Study
 if __name__ == '__main__':
     study = optuna.create_study(
-        study_name="unet_depth",
-        storage="sqlite:///optuna_study.db",
+        study_name="unet_depth_optuna2",
+        storage="sqlite:///optuna_study_run2.db",
         direction="minimize",
         pruner=MedianPruner(n_startup_trials=5, n_warmup_steps=10),
         load_if_exists=True
@@ -186,7 +193,7 @@ if __name__ == '__main__':
 
     print("\n" + "="*60)
     print(f"Time Taken: {time_str}")
-    print(f"Best val_loss: {study.best_value:.6f}")
+    print(f"Best val_mae: {study.best_value:.3f}m")
     print(f"Best params:")
     for k, v in study.best_params.items():
         print(f"  {k}:  {v}")
@@ -208,6 +215,16 @@ if __name__ == '__main__':
     fig = vis.plot_contour(study)
     fig.write_image(os.path.join(PLOTS_DIR, 'optuna_contour.png'))
 
-    
+    # Save best params to file
+    with open(os.path.join(PLOTS_DIR, 'best_parameters.txt'), 'w') as f:
+        f.write(f"Best val_mae: {study.best_value:.3f}m\n")
+        f.write(f"Best params:\n")
+        for k, v in study.best_params.items():
+            f.write(f"  {k}:  {v}\n")
 
-
+    # Start full training with best params
+    print("\nStarting full training run with best params...")
+    import subprocess
+    env = os.environ.copy()
+    env['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
+    subprocess.run([sys.executable, '-m', 'perception.train'], env=env)

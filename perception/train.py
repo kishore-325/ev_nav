@@ -28,6 +28,7 @@ EPOCHS        = 200
 BATCH_SIZE    = 64
 EARLY_STOPPING_PATIENCE = 7
 DEPTH_THRESH  = 0.20   # ignore pixels with normalised depth > this (background)
+WEIGHT_OFFSET = 0.02
 WORKERS       = 4
 QUAL_EVERY    = 20        # save qualitative grid every N epochs
 QUAL_SAMPLES  = 4         # number of val samples to show in the grid
@@ -38,17 +39,15 @@ DEVICE        = 'cuda' if torch.cuda.is_available() else 'cpu'
 # Optuna (load best params if study exists)
 # ──────────────────────────────────────────────
 try:
-    study = optuna.load_study(study_name='unet_depth', storage='sqlite:///optuna_study.db')
+    study = optuna.load_study(study_name='unet_depth_optuna2', storage='sqlite:///optuna_study_run2.db')
     best = study.best_params
     LR            = best['lr']
-    WEIGHT_OFFSET = best['weight_offset']
     BERHU_C_FRAC  = best['berhu_c_frac']
     GRAD_WEIGHT   = best['grad_weight']
-    print(f"Loaded Optuna best params: lr={LR:.2e}, weight_offset={WEIGHT_OFFSET:.4f}, "
+    print(f"Loaded Optuna best params: lr={LR:.2e}, "
           f"berhu_c_frac={BERHU_C_FRAC:.4f}, grad_weight={GRAD_WEIGHT:.4f}")
 except Exception:
     LR            = 1e-4
-    WEIGHT_OFFSET = 0.02
     BERHU_C_FRAC  = 0.2
     GRAD_WEIGHT   = 0.5
     print("No Optuna study found, using default hyperparameters.")
