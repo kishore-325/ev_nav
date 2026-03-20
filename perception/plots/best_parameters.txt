@@ -1,7 +1,0 @@
-Time Taken: 11h 7m 18s                                                                                                                                                                 
-Best val_loss: 0.065281                                                                                                                                                                
-Best params:                                                                                                                                                                           
-  lr:  0.0009864469773849954                                                                                                                                                           
-  weight_offset:  0.18216857147030263                                                                                                                                                  
-  berhu_c_frac:  0.4634584804944553                                                                                                                                                    
-  grad_weight:  0.3691598596458817  
