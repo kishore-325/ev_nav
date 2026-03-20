@@ -1,6 +1,7 @@
 import os
 import sys
 import csv
+import time
 import torch
 import random
 from torch.utils.data import DataLoader
@@ -31,10 +32,10 @@ N_TRIALS     = 30
 
 # Data
 train_dataset = EventDepthDataset(TRAIN_DATASETS_DIR)
-indices = random.sample(range(len(train_dataset)), 25000)
+indices = random.sample(range(len(train_dataset)), 10000)
 train_dataset = Subset(train_dataset, indices)
 val_dataset = EventDepthDataset(VAL_DATASETS_DIR)
-indices = random.sample(range(len(val_dataset)), 5000)
+indices = random.sample(range(len(val_dataset)), 3000)
 val_dataset= Subset(val_dataset, indices)
 n_train = len(train_dataset)
 n_val = len(val_dataset)
@@ -82,6 +83,7 @@ def objective(trial):
     best_train_loss = float('inf')
     patience_counter = 0
 
+    was_pruned = False
     try:
         for epoch in range(1, EPOCHS + 1):
 
@@ -120,6 +122,7 @@ def objective(trial):
                 # 4. Report to Optuna for pruning
                 trial.report(val_loss, epoch)
                 if trial.should_prune():
+                    was_pruned = True
                     raise optuna.TrialPruned()
 
                 # Early stopping
@@ -149,6 +152,8 @@ def objective(trial):
         log_file.flush()
 
         # Print trial summary
+        if was_pruned:
+            print(f"\n    Trial {trial.number} pruned.")
         print(f"\n{'='*60}")
         print(f"Trial {trial.number} complete")
         print(f"  Best Epoch: {best_epoch}")
@@ -170,11 +175,17 @@ if __name__ == '__main__':
         load_if_exists=True
     )
 
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
+
+    start = time.time()
     study.optimize(objective, n_trials=N_TRIALS)
+    total_secs = int(time.time() - start)
+    time_str = f"{total_secs // 3600}h {(total_secs % 3600) // 60}m {total_secs % 60}s"
 
     log_file.close()
 
     print("\n" + "="*60)
+    print(f"Time Taken: {time_str}")
     print(f"Best val_loss: {study.best_value:.6f}")
     print(f"Best params:")
     for k, v in study.best_params.items():
