@@ -20,7 +20,7 @@ from perception.train import combined_loss, compute_metrics
 # CONFIG
 TRAIN_DATASETS_DIR = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Train')
 VAL_DATASETS_DIR   = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Val')
-PLOTS_DIR          = os.path.join('/home/srinivasan/ev_nav_run2', 'perception', 'plots')
+PLOTS_DIR          = os.path.join('/home/srinivasan/ev_nav', 'perception', 'plots')
 EPOCHS       = 100
 BATCH_SIZE   = 64
 DEPTH_THRESH = 0.20
@@ -41,7 +41,7 @@ n_train = len(train_dataset)
 n_val = len(val_dataset)
 
 # Log
-LOG_PATH = os.path.join('/home/srinivasan/ev_nav_run2', 'perception', 'plots', 'tune_log.csv')
+LOG_PATH = os.path.join('/home/srinivasan/ev_nav', 'perception', 'plots', 'tune_log.csv')
 log_file = open(LOG_PATH, 'w', newline='')
 logger = csv.writer(log_file)
 logger.writerow(['trial', 'best_epoch', 'train_loss', 'val_loss', 'val_mae',
@@ -165,8 +165,8 @@ def objective(trial):
 # Run Study
 if __name__ == '__main__':
     study = optuna.create_study(
-        study_name="unet_depth_optuna2",
-        storage="sqlite:///optuna_study_run2.db",
+        study_name="unet_depth_cma-es",
+        storage="sqlite:///optuna_study_cma-es.db",
         direction="minimize",
         sampler=optuna.samplers.CmaEsSampler(n_startup_trials=4),
         pruner=optuna.pruners.NopPruner(),

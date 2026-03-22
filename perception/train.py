@@ -22,8 +22,8 @@ from perception.plot import (plot_curves, plot_qualitative,
 TRAIN_DATASETS_DIR = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Train')
 VAL_DATASETS_DIR   = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Val')
 TEST_DATASETS_DIR  = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Test')
-CKPT_DIR           = os.path.join('/home/srinivasan/ev_nav_run2', 'perception', 'checkpoints')
-PLOTS_DIR          = os.path.join('/home/srinivasan/ev_nav_run2', 'perception', 'plots')
+CKPT_DIR           = os.path.join('/home/srinivasan/ev_nav', 'perception', 'checkpoints')
+PLOTS_DIR          = os.path.join('/home/srinivasan/ev_nav', 'perception', 'plots')
 EPOCHS        = 200
 BATCH_SIZE    = 64
 EARLY_STOPPING_PATIENCE = 7
@@ -39,18 +39,20 @@ DEVICE        = 'cuda' if torch.cuda.is_available() else 'cpu'
 # Optuna (load best params if study exists)
 # ──────────────────────────────────────────────
 try:
-    study = optuna.load_study(study_name='unet_depth_optuna2', storage='sqlite:///optuna_study_run2.db')
+    study = optuna.load_study(study_name='unet_depth_cma-es', storage='sqlite:///optuna_study_cma-es.db')
     best = study.best_params
     LR            = best['lr']
     BERHU_C_FRAC  = best['berhu_c_frac']
     GRAD_WEIGHT   = best['grad_weight']
-    print(f"Loaded Optuna best params: lr={LR:.2e}, "
-          f"berhu_c_frac={BERHU_C_FRAC:.4f}, grad_weight={GRAD_WEIGHT:.4f}")
+    if __name__ == '__main__':
+        print(f"Loaded Optuna best params: lr={LR:.2e}, "
+            f"berhu_c_frac={BERHU_C_FRAC:.4f}, grad_weight={GRAD_WEIGHT:.4f}")
 except Exception:
     LR            = 1e-4
     BERHU_C_FRAC  = 0.2
     GRAD_WEIGHT   = 0.5
-    print("No Optuna study found, using default hyperparameters.")
+    if __name__ == '__main__':
+        print("No Optuna study found, using default hyperparameters.")
 
 # ──────────────────────────────────────────────
 # Loss / metrics

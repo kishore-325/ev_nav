@@ -1,0 +1,5 @@
+Best val_mae: 2.064m
+Best params:
+  lr:  0.0007690048947444876
+  berhu_c_frac:  0.4231720212224987
+  grad_weight:  0.07780724518957283
