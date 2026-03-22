@@ -1,0 +1,170 @@
+Trial  29  |  Epoch  1/200  |  train = 3.267104
+    Trial  29  |  Epoch  2/200  |  train = 2.953128
+    Trial  29  |  Epoch  3/200  |  train = 0.656435
+    Trial  29  |  Epoch  4/200  |  train = 0.642174
+    Trial  29  |  Epoch  5/200  |  train = 0.656318  |  val_loss = 0.696264  |  val_mae = 3.326m
+    Trial  29  |  Epoch  6/200  |  train = 0.652535
+    Trial  29  |  Epoch  7/200  |  train = 0.616572
+    Trial  29  |  Epoch  8/200  |  train = 0.584248
+    Trial  29  |  Epoch  9/200  |  train = 0.589174
+
+    Trial 29 pruned.
+
+============================================================
+Trial 29 complete
+  Best Epoch: 5
+  Best val_mae: 3.326m
+  Best val_loss: 0.696264
+  Best Train_loss : 0.656318
+  Params: lr=4.77e-05, berhu_c_frac=0.0853, grad_weight=0.2916
+============================================================
+
+
+============================================================
+Time Taken: 6h 5m 19s
+Best val_mae: 2.050m
+Best params:
+  lr:  0.0008176151561434734
+  berhu_c_frac:  0.14024016834664504
+  grad_weight:  0.014358381422356237
+============================================================
+
+Starting full training run with best params...
+Loaded Optuna best params: lr=8.18e-04, berhu_c_frac=0.1402, grad_weight=0.0144
+[EventDepthDataset] 63000 paired samples found
+[EventDepthDataset] 10800 paired samples found
+[EventDepthDataset] 10800 paired samples found
+Train: 63000  Val: 10800  Test: 10800  Device: cuda  GPU: 4  BATCH: 256
+Using 4 GPU's
+Parameters: 7,759,809
+Epoch 0001/200  train=0.956223  val=0.919663 (MAE=6.506m  RMSE=7.807m  δ<1.25=0.000)  test=0.922126 (MAE=6.516m  RMSE=7.814m  δ<1.25=0.000)  lr=8.18e-04
+    -> saved best checkpoint (val=0.919663)
+/home/srinivasan/ev_nav_run2/perception/plot.py:143: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+Epoch 2/200  train=0.919906
+Epoch 3/200  train=0.919906
+Epoch 4/200  train=0.919906
+Epoch 0005/200  train=0.919906  val=0.919663 (MAE=6.506m  RMSE=7.807m  δ<1.25=0.000)  test=0.922126 (MAE=6.516m  RMSE=7.814m  δ<1.25=0.000)  lr=8.18e-04
+    -> saved best checkpoint (val=0.919663)
+Epoch 6/200  train=0.919906
+Epoch 7/200  train=0.919906
+Epoch 8/200  train=0.919906
+Epoch 9/200  train=0.919906
+Epoch 0010/200  train=0.919906  val=0.919663 (MAE=6.506m  RMSE=7.807m  δ<1.25=0.000)  test=0.922126 (MAE=6.516m  RMSE=7.814m  δ<1.25=0.000)  lr=8.18e-04
+    -> saved best checkpoint (val=0.919663)
+Epoch 11/200  train=0.919906
+Epoch 12/200  train=0.919906
+Epoch 13/200  train=0.919906
+Epoch 14/200  train=0.919906
+Epoch 0015/200  train=0.919906  val=0.919663 (MAE=6.506m  RMSE=7.807m  δ<1.25=0.000)  test=0.922126 (MAE=6.516m  RMSE=7.814m  δ<1.25=0.000)  lr=8.18e-04
+Epoch 16/200  train=0.919906
+Epoch 17/200  train=0.919906
+Epoch 18/200  train=0.919906
+Epoch 19/200  train=0.919906
+Epoch 0020/200  train=0.919906  val=0.919663 (MAE=6.506m  RMSE=7.807m  δ<1.25=0.000)  test=0.922126 (MAE=6.516m  RMSE=7.814m  δ<1.25=0.000)  lr=8.18e-04
+Epoch 21/200  train=0.919906
+Epoch 22/200  train=0.919906
+Epoch 23/200  train=0.919906
+Epoch 24/200  train=0.919906
+Epoch 0025/200  train=0.919906  val=0.919663 (MAE=6.506m  RMSE=7.807m  δ<1.25=0.000)  test=0.922126 (MAE=6.516m  RMSE=7.814m  δ<1.25=0.000)  lr=4.09e-04
+Epoch 26/200  train=0.919906
+Epoch 27/200  train=0.919906
+Epoch 28/200  train=0.919906
+Epoch 29/200  train=0.919906
+Epoch 0030/200  train=0.919906  val=0.919663 (MAE=6.506m  RMSE=7.807m  δ<1.25=0.000)  test=0.922126 (MAE=6.516m  RMSE=7.814m  δ<1.25=0.000)  lr=4.09e-04
+Epoch 31/200  train=0.919906
+Epoch 32/200  train=0.919906
+Epoch 33/200  train=0.919906
+Epoch 34/200  train=0.919906
+Epoch 0035/200  train=0.919906  val=0.919663 (MAE=6.506m  RMSE=7.807m  δ<1.25=0.000)  test=0.922126 (MAE=6.516m  RMSE=7.814m  δ<1.25=0.000)  lr=4.09e-04
+Epoch 36/200  train=0.919906
+Epoch 37/200  train=0.919906
+Epoch 38/200  train=0.919906
+Epoch 39/200  train=0.919906
+Epoch 0040/200  train=0.919906  val=0.919663 (MAE=6.506m  RMSE=7.807m  δ<1.25=0.000)  test=0.922126 (MAE=6.516m  RMSE=7.814m  δ<1.25=0.000)  lr=4.09e-04
+    -> saved best checkpoint (val=0.919663)
+Epoch 41/200  train=0.919906
+Epoch 42/200  train=0.919906
+Epoch 43/200  train=0.919906
+Epoch 44/200  train=0.919906
+Epoch 0045/200  train=0.919906  val=0.919663 (MAE=6.506m  RMSE=7.807m  δ<1.25=0.000)  test=0.922126 (MAE=6.516m  RMSE=7.814m  δ<1.25=0.000)  lr=4.09e-04
+Epoch 46/200  train=0.919906
+Epoch 47/200  train=0.919906
+Epoch 48/200  train=0.919906
+Epoch 49/200  train=0.919906
+Epoch 0050/200  train=0.919906  val=0.919663 (MAE=6.506m  RMSE=7.807m  δ<1.25=0.000)  test=0.922126 (MAE=6.516m  RMSE=7.814m  δ<1.25=0.000)  lr=2.04e-04
+    -> saved best checkpoint (val=0.919663)
+Epoch 51/200  train=0.919906
+Epoch 52/200  train=0.919906
+Epoch 53/200  train=0.919906
+Epoch 54/200  train=0.919906
+Epoch 0055/200  train=0.919906  val=0.919663 (MAE=6.506m  RMSE=7.807m  δ<1.25=0.000)  test=0.922126 (MAE=6.516m  RMSE=7.814m  δ<1.25=0.000)  lr=2.04e-04
+Epoch 56/200  train=0.919906
+Epoch 57/200  train=0.919906
+Epoch 58/200  train=0.919906
+Epoch 59/200  train=0.919906
+Epoch 0060/200  train=0.919906  val=0.919663 (MAE=6.506m  RMSE=7.807m  δ<1.25=0.000)  test=0.922126 (MAE=6.516m  RMSE=7.814m  δ<1.25=0.000)  lr=2.04e-04
+Epoch 61/200  train=0.919906
+Epoch 62/200  train=0.919906
+Epoch 63/200  train=0.919906
+Epoch 64/200  train=0.919906
+Epoch 0065/200  train=0.919906  val=0.919663 (MAE=6.506m  RMSE=7.807m  δ<1.25=0.000)  test=0.922126 (MAE=6.516m  RMSE=7.814m  δ<1.25=0.000)  lr=2.04e-04
+Epoch 66/200  train=0.919906
+Epoch 67/200  train=0.919906
+Epoch 68/200  train=0.919906
+Epoch 69/200  train=0.919906
+Epoch 0070/200  train=0.919906  val=0.919663 (MAE=6.506m  RMSE=7.807m  δ<1.25=0.000)  test=0.922126 (MAE=6.516m  RMSE=7.814m  δ<1.25=0.000)  lr=2.04e-04
+Epoch 71/200  train=0.919906
+Epoch 72/200  train=0.919906
+Epoch 73/200  train=0.919906
+Epoch 74/200  train=0.919906
+Epoch 0075/200  train=0.919906  val=0.919663 (MAE=6.506m  RMSE=7.807m  δ<1.25=0.000)  test=0.922126 (MAE=6.516m  RMSE=7.814m  δ<1.25=0.000)  lr=1.02e-04
+Epoch 76/200  train=0.919906
+Epoch 77/200  train=0.919906
+Epoch 78/200  train=0.919906
+Epoch 79/200  train=0.919906
+Epoch 0080/200  train=0.919906  val=0.919663 (MAE=6.506m  RMSE=7.807m  δ<1.25=0.000)  test=0.922126 (MAE=6.516m  RMSE=7.814m  δ<1.25=0.000)  lr=1.02e-04
+    -> saved best checkpoint (val=0.919663)
+Epoch 81/200  train=0.919906
+Epoch 82/200  train=0.919906
+Epoch 83/200  train=0.919906
+Epoch 84/200  train=0.919906
+Epoch 0085/200  train=0.919906  val=0.919663 (MAE=6.506m  RMSE=7.807m  δ<1.25=0.000)  test=0.922126 (MAE=6.516m  RMSE=7.814m  δ<1.25=0.000)  lr=1.02e-04
+Epoch 86/200  train=0.919906
+Epoch 87/200  train=0.919906
+Epoch 88/200  train=0.919906
+Epoch 89/200  train=0.919906
+Epoch 0090/200  train=0.919906  val=0.919663 (MAE=6.506m  RMSE=7.807m  δ<1.25=0.000)  test=0.922126 (MAE=6.516m  RMSE=7.814m  δ<1.25=0.000)  lr=1.02e-04
+Epoch 91/200  train=0.919906
+Epoch 92/200  train=0.919906
+Epoch 93/200  train=0.919906
+Epoch 94/200  train=0.919906
+Epoch 0095/200  train=0.919906  val=0.919663 (MAE=6.506m  RMSE=7.807m  δ<1.25=0.000)  test=0.922126 (MAE=6.516m  RMSE=7.814m  δ<1.25=0.000)  lr=1.02e-04
+Epoch 96/200  train=0.919906
+Epoch 97/200  train=0.919906
+Epoch 98/200  train=0.919906
+Epoch 99/200  train=0.919906
+Epoch 0100/200  train=0.919906  val=0.919663 (MAE=6.506m  RMSE=7.807m  δ<1.25=0.000)  test=0.922126 (MAE=6.516m  RMSE=7.814m  δ<1.25=0.000)  lr=5.11e-05
+Epoch 101/200  train=0.919906
+Epoch 102/200  train=0.919906
+Epoch 103/200  train=0.919906
+Epoch 104/200  train=0.919906
+Epoch 0105/200  train=0.919906  val=0.919663 (MAE=6.506m  RMSE=7.807m  δ<1.25=0.000)  test=0.922126 (MAE=6.516m  RMSE=7.814m  δ<1.25=0.000)  lr=5.11e-05
+Epoch 106/200  train=0.919906
+Epoch 107/200  train=0.919906
+Epoch 108/200  train=0.919906
+Epoch 109/200  train=0.919906
+Epoch 0110/200  train=0.919906  val=0.919663 (MAE=6.506m  RMSE=7.807m  δ<1.25=0.000)  test=0.922126 (MAE=6.516m  RMSE=7.814m  δ<1.25=0.000)  lr=5.11e-05
+Epoch 111/200  train=0.919906
+Epoch 112/200  train=0.919906
+Epoch 113/200  train=0.919906
+Epoch 114/200  train=0.919906
+Epoch 0115/200  train=0.919906  val=0.919663 (MAE=6.506m  RMSE=7.807m  δ<1.25=0.000)  test=0.922126 (MAE=6.516m  RMSE=7.814m  δ<1.25=0.000)  lr=5.11e-05
+Early stopping at epoch 115 (no improvement for 7 val checks)
+Generating final diagnostic plots …
+  (using best.pth — epoch=80, val_loss=0.919663)
+Training complete.
+Time Taken: 2h 24m 34s
+Training logs saved to: /home/srinivasan/ev_nav_run2/perception/plots/train_log.csv
+Plots saved to: /home/srinivasan/ev_nav_run2/perception/plots
+(evfly) srinivasan@ubuntu:~/ev_nav_run2$ 

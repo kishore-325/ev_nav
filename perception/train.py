@@ -44,13 +44,15 @@ try:
     LR            = best['lr']
     BERHU_C_FRAC  = best['berhu_c_frac']
     GRAD_WEIGHT   = best['grad_weight']
-    print(f"Loaded Optuna best params: lr={LR:.2e}, "
-          f"berhu_c_frac={BERHU_C_FRAC:.4f}, grad_weight={GRAD_WEIGHT:.4f}")
+    if __name__ == '__main__':
+        print(f"Loaded Optuna best params: lr={LR:.2e}, "
+              f"berhu_c_frac={BERHU_C_FRAC:.4f}, grad_weight={GRAD_WEIGHT:.4f}")
 except Exception:
     LR            = 1e-4
     BERHU_C_FRAC  = 0.2
     GRAD_WEIGHT   = 0.5
-    print("No Optuna study found, using default hyperparameters.")
+    if __name__ == '__main__':
+        print("No Optuna study found, using default hyperparameters.")
 
 # ──────────────────────────────────────────────
 # Loss / metrics
