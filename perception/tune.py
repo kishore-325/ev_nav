@@ -12,11 +12,10 @@ sys.path.append(os.environ['PROJECT_PATH'])
 
 import optuna
 import optuna.visualization as vis
-from optuna.pruners import MedianPruner
 
 from perception.models import OrigUNet
 from perception.dataset import EventDepthDataset
-from perception.train import combined_loss, compute_metrics, gradient_loss
+from perception.train import combined_loss, compute_metrics
 
 # CONFIG
 TRAIN_DATASETS_DIR = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Train')
@@ -84,7 +83,6 @@ def objective(trial):
     best_train_loss = float('inf')
     patience_counter = 0
 
-    was_pruned = False
     try:
         for epoch in range(1, EPOCHS + 1):
 
@@ -124,12 +122,6 @@ def objective(trial):
                 val_mae  /= n_val
                 scheduler.step(val_loss)
 
-                # 4. Report MAE to Optuna for pruning
-                trial.report(val_mae, epoch)
-                if trial.should_prune():
-                    was_pruned = True
-                    raise optuna.TrialPruned()
-
                 # Early stopping on val MAE
                 if val_mae < best_val_mae:
                     best_val_mae = val_mae
@@ -158,8 +150,6 @@ def objective(trial):
         log_file.flush()
 
         # Print trial summary
-        if was_pruned:
-            print(f"\n    Trial {trial.number} pruned.")
         print(f"\n{'='*60}")
         print(f"Trial {trial.number} complete")
         print(f"  Best Epoch: {best_epoch}")
@@ -178,7 +168,6 @@ if __name__ == '__main__':
         study_name="unet_depth_optuna2",
         storage="sqlite:///optuna_study_run2.db",
         direction="minimize",
-        pruner=MedianPruner(n_startup_trials=5, n_warmup_steps=10),
         load_if_exists=True
     )
 
