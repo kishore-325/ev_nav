@@ -165,8 +165,8 @@ def objective(trial):
 # Run Study
 if __name__ == '__main__':
     study = optuna.create_study(
-        study_name="unet_depth_optuna2",
-        storage="sqlite:///optuna_study_run2.db",
+        study_name="unet_depth_optuna3",
+        storage="sqlite:///optuna_study_run3.db",
         direction="minimize",
         load_if_exists=True
     )

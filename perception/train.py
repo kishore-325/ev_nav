@@ -39,7 +39,7 @@ DEVICE        = 'cuda' if torch.cuda.is_available() else 'cpu'
 # Optuna (load best params if study exists)
 # ──────────────────────────────────────────────
 try:
-    study = optuna.load_study(study_name='unet_depth_optuna2', storage='sqlite:///optuna_study_run2.db')
+    study = optuna.load_study(study_name='unet_depth_optuna3', storage='sqlite:///optuna_study_run3.db')
     best = study.best_params
     LR            = best['lr']
     BERHU_C_FRAC  = best['berhu_c_frac']
