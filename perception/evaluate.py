@@ -9,7 +9,7 @@ sys.path.append(os.environ['PROJECT_PATH'])
 from perception.models import OrigUNet
 from perception.dataset import EventDepthDataset
 
-TEST_DATASETS_DIR = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Test')
+TEST_DATASETS_DIR = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Train')
 CKPT_PATH         = os.path.join('/home/srinivasan/ev_nav', 'perception', 'checkpoints', 'best.pth')
 DEPTH_THRESH      = 0.20
 BATCH_SIZE        = 64
