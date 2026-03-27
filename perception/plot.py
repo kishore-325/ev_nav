@@ -97,7 +97,7 @@ def plot_qualitative(model, test_loader, device, epoch, out_dir, n_samples=4, th
     depths = depths[:n_samples].to(device)
 
     with torch.no_grad():
-        preds = model(events)
+        preds,_ = model(events)
 
     events_np = events.cpu().numpy()  # (N, 1, H, W)
     depths_np  = depths.cpu().numpy()
@@ -265,7 +265,7 @@ def plot_error_histogram(model, test_loader, device, out_dir, thresh=0.99):
     with torch.no_grad():
         for event, depth in test_loader:
             event, depth = event.to(device), depth.to(device)
-            pred = model(event)
+            pred,_ = model(event)
             mask = (depth >= 0) & (depth < thresh)
             err  = (pred[mask] - depth[mask]).abs().cpu().numpy() * 100.0
             all_errors.append(err)

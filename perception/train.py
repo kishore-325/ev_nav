@@ -141,7 +141,7 @@ def run():
             event = event.to(DEVICE)
             depth = depth.to(DEVICE)
 
-            pred = model(event)
+            pred,_ = model(event)
             loss = masked_weighted_mse(pred, depth)
 
             optimizer.zero_grad()
@@ -165,7 +165,7 @@ def run():
             with torch.no_grad():
                 for event, depth in val_loader:
                     event = event.to(DEVICE); depth = depth.to(DEVICE)
-                    pred  = model(event)
+                    pred,_  = model(event)
                     n = event.size(0)
                     val_loss += masked_weighted_mse(pred, depth).item() * n
                     m = compute_metrics(pred, depth)
@@ -189,7 +189,7 @@ def run():
             with torch.no_grad():
                 for event, depth in test_loader:
                     event = event.to(DEVICE); depth = depth.to(DEVICE)
-                    pred  = model(event)
+                    pred,_  = model(event)
                     n = event.size(0)
                     test_loss += masked_weighted_mse(pred, depth).item() * n
                     m = compute_metrics(pred, depth)
