@@ -55,8 +55,6 @@ class OrigUNet(nn.Module):
         self.d42 = nn.Conv2d(32, 32, kernel_size=3, padding=0)
 
         self.out_conv = nn.Conv2d(32, 1, kernel_size=1)     # (N, 1, 64, 148)
-        nn.init.zeros_(self.out_conv.weight)
-        nn.init.constant_(self.out_conv.bias, -2.20)  # sigmoid(-2.20) ≈ 0.10 = midpoint of [0, 0.20] target range
 
         self.nonlin = nn.ReLU()
 
@@ -113,6 +111,6 @@ class OrigUNet(nn.Module):
         
         y = self.out_conv(d4)                                               # (N,1,68,148)
 
-        # Upsample to input resolution and apply sigmoid for [0,1] output
+        # Upsample to input resolution
         y = F.interpolate(y, size=(self.input_h,self.input_w), mode='bilinear', align_corners=False)
-        return torch.sigmoid(y)                                             # (N,1,260,346)
+        return y                                                            # (N,1,260,346)
