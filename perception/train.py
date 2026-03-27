@@ -311,7 +311,7 @@ def run():
         ('5 - 7.5 m',   0.05,  0.075),
         ('7.5 - 10 m',  0.075, 0.10),
         ('10 - 15 m',   0.1,   0.15),
-        ('15 - 20 m',   0.15,  DEPTH_THRESH),
+        ('15 - 20 m',   0.15,  0.20),
         ('Overall',     0.0,   DEPTH_THRESH),
     ]
     plot_scatter(plot_model, test_loader, DEVICE, PLOTS_DIR, thresh=DEPTH_THRESH, bands=scatter_bands)
