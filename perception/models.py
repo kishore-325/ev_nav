@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from ConvLSTM_pytorch.convlstm import ConvLSTM
+from perception.ConvLSTM_pytorch.convlstm import ConvLSTM
 
 class OrigUNet(nn.Module):
     """

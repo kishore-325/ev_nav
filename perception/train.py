@@ -28,6 +28,13 @@ LR            = 1e-4
 EARLY_STOPPING_PATIENCE = 7
 DEPTH_THRESH  = 0.99   # ignore pixels with normalised depth > this (background)
 WORKERS       = 4
+# ── LSTM temporal training ───────────────────────────────────────────────────
+# When True: training data is fed sequentially (no shuffle) so the ConvLSTM
+# hidden state carries real temporal context across consecutive frames.
+# Hidden state h is detached after every batch (TBPTT window = batch size)
+# and reset to None whenever a batch contains an episode-end frame.
+# Requires episode_boundaries.json produced by find_episode_boundaries.py.
+USE_LSTM_TEMPORAL = True
 QUAL_EVERY    = 20        # save qualitative grid every N epochs
 QUAL_SAMPLES  = 4         # number of val samples to show in the grid
 QUAL_SKIP     = 2         # number of batches to skip before sampling the qual grid
@@ -86,9 +93,19 @@ def run():
     n_test  = len(test_dataset)
 
     n_gpus = min(torch.cuda.device_count() if torch.cuda.is_available() else 1, 4)
+    # DataParallel scatters ALL inputs (including lstm_h) along batch dim=0.
+    # lstm_h has batch_size=1 (from e5.unsqueeze(0)), so it cannot be split across
+    # multiple GPUs — this would crash with a dim-size mismatch.
+    # LSTM temporal mode must run on a single GPU.
+    if USE_LSTM_TEMPORAL and n_gpus > 1:
+        print(f"[Warning] USE_LSTM_TEMPORAL=True: forcing single-GPU (DataParallel "
+              f"cannot scatter the ConvLSTM hidden state across {n_gpus} GPUs).")
+        n_gpus = 1
     effective_batch = BATCH_SIZE * n_gpus
 
-    train_loader = DataLoader(train_dataset, batch_size=effective_batch, shuffle=True,
+    train_loader = DataLoader(train_dataset, batch_size=effective_batch,
+                              shuffle=not USE_LSTM_TEMPORAL,
+                              drop_last=USE_LSTM_TEMPORAL,   # keep batch size fixed for h
                               num_workers=WORKERS, pin_memory=True)
     val_loader   = DataLoader(val_dataset,   batch_size=effective_batch, shuffle=False,
                               num_workers=WORKERS, pin_memory=True)
@@ -132,24 +149,63 @@ def run():
 
     # ── Epoch loop ────────────────────────────
     start = time.time()
+    lstm_h = None   # ConvLSTM hidden state — maintained across batches within epoch
     for epoch in range(1, EPOCHS + 1):
 
         # Train
         model.train()
         train_loss = 0.0
-        for event, depth in train_loader:
-            event = event.to(DEVICE)
-            depth = depth.to(DEVICE)
+        lstm_h = None   # reset hidden state at the start of every epoch
 
-            pred,_ = model(event)
-            loss = masked_weighted_mse(pred, depth)
+        if USE_LSTM_TEMPORAL:
+            # ── Sequential LSTM training ──────────────────────────────────────
+            # Batches are consecutive frames in dataset order.  The ConvLSTM
+            # treats the whole batch as a temporal sequence (batch=1, seq=N)
+            # via e5.unsqueeze(0) inside model.forward().
+            # h is detached after every batch (TBPTT window = batch size) and
+            # reset to None after any batch that contains an episode-end frame
+            # so the very next batch starts with a clean state.
+            reset_h_next = True   # start of epoch = fresh state
+            for event, depth, is_ep_end in train_loader:
+                if reset_h_next:
+                    lstm_h = None
+                    reset_h_next = False
 
-            optimizer.zero_grad()
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            optimizer.step()
+                event = event.to(DEVICE)
+                depth = depth.to(DEVICE)
 
-            train_loss += loss.item() * event.size(0)
+                pred, h_new = model(event, lstm_h)
+                loss = masked_weighted_mse(pred, depth)
+
+                optimizer.zero_grad()
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                optimizer.step()
+
+                train_loss += loss.item() * event.size(0)
+
+                # Detach hidden state — gradients only flow within one batch (TBPTT)
+                lstm_h = [[hh.detach(), cc.detach()] for hh, cc in h_new]
+
+                # If this batch contained an episode end, reset h before next batch
+                if is_ep_end.any():
+                    reset_h_next = True
+
+        else:
+            # ── Standard shuffled training (no temporal LSTM) ─────────────────
+            for event, depth, _ in train_loader:
+                event = event.to(DEVICE)
+                depth = depth.to(DEVICE)
+
+                pred, _ = model(event)
+                loss = masked_weighted_mse(pred, depth)
+
+                optimizer.zero_grad()
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+                optimizer.step()
+
+                train_loss += loss.item() * event.size(0)
 
         train_loss /= n_train
         epochs_train.append(epoch)
@@ -163,9 +219,9 @@ def run():
             val_loss = 0.0
             sum_mae  = 0.0; sum_rmse = 0.0; sum_d1 = 0.0
             with torch.no_grad():
-                for event, depth in val_loader:
+                for event, depth, _ in val_loader:
                     event = event.to(DEVICE); depth = depth.to(DEVICE)
-                    pred,_  = model(event)
+                    pred, _ = model(event)
                     n = event.size(0)
                     val_loss += masked_weighted_mse(pred, depth).item() * n
                     m = compute_metrics(pred, depth)
@@ -187,9 +243,9 @@ def run():
             test_loss = 0.0
             sum_mae  = 0.0; sum_rmse = 0.0; sum_d1 = 0.0
             with torch.no_grad():
-                for event, depth in test_loader:
+                for event, depth, _ in test_loader:
                     event = event.to(DEVICE); depth = depth.to(DEVICE)
-                    pred,_  = model(event)
+                    pred, _ = model(event)
                     n = event.size(0)
                     test_loss += masked_weighted_mse(pred, depth).item() * n
                     m = compute_metrics(pred, depth)

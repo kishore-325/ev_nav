@@ -54,10 +54,10 @@ def evaluate():
            for label, *_ in BANDS}
 
     with torch.no_grad():
-        for event, depth in test_loader:
+        for event, depth, _ in test_loader:
             event = event.to(DEVICE)
             depth = depth.to(DEVICE)
-            pred  = model(event)
+            pred, _ = model(event)
 
             for label, lo, hi in BANDS:
                 mask = (depth >= lo) & (depth < hi)
