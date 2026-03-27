@@ -20,11 +20,12 @@ from perception.plot import (plot_curves, plot_qualitative,
 TRAIN_DATASETS_DIR = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Train')
 VAL_DATASETS_DIR   = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Val')
 TEST_DATASETS_DIR  = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Test')
-CKPT_DIR           = os.path.join(os.environ['PROJECT_PATH'], 'perception', 'checkpoints')
-PLOTS_DIR          = os.path.join(os.environ['PROJECT_PATH'], 'perception', 'plots')
+CKPT_DIR           = os.path.join('/home/srinivasan/ev_nav', 'perception', 'checkpoints')
+PLOTS_DIR          = os.path.join('/home/srinivasan/ev_nav', 'perception', 'plots')
 EPOCHS        = 200
 BATCH_SIZE    = 64
 LR            = 1e-4
+EARLY_STOPPING_PATIENCE = 7
 DEPTH_THRESH  = 0.99   # ignore pixels with normalised depth > this (background)
 WORKERS       = 4
 QUAL_EVERY    = 20        # save qualitative grid every N epochs
@@ -53,7 +54,7 @@ def compute_metrics(pred, target, thresh=DEPTH_THRESH):
                    metric depth = value * 100 m
     Returns dict with keys 'mae', 'rmse', 'delta1'.
     """
-    mask = (target >= 0) & (target < thresh)
+    mask = (target >= 0) & (target <= thresh)
     if mask.sum() == 0:
         return {'mae': 0.0, 'rmse': 0.0, 'delta1': 0.0}
 
@@ -84,21 +85,31 @@ def run():
     n_val   = len(val_dataset)
     n_test  = len(test_dataset)
 
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True,
+    n_gpus = min(torch.cuda.device_count() if torch.cuda.is_available() else 1, 4)
+    effective_batch = BATCH_SIZE * n_gpus
+
+    train_loader = DataLoader(train_dataset, batch_size=effective_batch, shuffle=True,
                               num_workers=WORKERS, pin_memory=True)
-    val_loader   = DataLoader(val_dataset,   batch_size=BATCH_SIZE, shuffle=False,
+    val_loader   = DataLoader(val_dataset,   batch_size=effective_batch, shuffle=False,
                               num_workers=WORKERS, pin_memory=True)
-    test_loader  = DataLoader(test_dataset,  batch_size=BATCH_SIZE, shuffle=False,
+    test_loader  = DataLoader(test_dataset,  batch_size=effective_batch, shuffle=False,
                               num_workers=WORKERS, pin_memory=True)
 
-    print(f'Train: {n_train}  Val: {n_val}  Test: {n_test}  Device: {DEVICE}')
+    print(f'Train: {n_train}  Val: {n_val}  Test: {n_test}  Device: {DEVICE}  GPU: {n_gpus}  BATCH: {effective_batch}')
 
     # ── Model ─────────────────────────────────
     model    = OrigUNet().to(DEVICE)
+    if n_gpus > 1:
+        print(f"Using {n_gpus} GPU's")
+        model = torch.nn.DataParallel(model)
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Parameters: {n_params:,}")
 
     optimizer = torch.optim.Adam(model.parameters(), lr=LR)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode='min', factor=0.5, patience=4
+    )
+    patience_counter = 0
 
     best_val_loss = float('inf')
 
@@ -107,7 +118,7 @@ def run():
     logger = csv.writer(log_file)
     logger.writerow(['epoch', 'train_loss',
                      'val_loss', 'val_mae_m', 'val_rmse_m', 'val_delta1',
-                     'test_loss', 'test_mae_m', 'test_rmse_m', 'test_delta1'])
+                     'test_loss', 'test_mae_m', 'test_rmse_m', 'test_delta1', 'lr'])
 
     # Tracking history for plots
     epochs_train = []
@@ -162,6 +173,11 @@ def run():
                     sum_rmse += m['rmse'] * n
                     sum_d1   += m['delta1'] * n
             val_loss /= n_val
+
+            # step scheduler
+            scheduler.step(val_loss)
+            current_lr = optimizer.param_groups[0]['lr']
+
             val_metrics = {'mae': sum_mae / n_val, 'rmse': sum_rmse / n_val, 'delta1': sum_d1 / n_val}
             epochs_val.append(epoch)
             losses_val.append(val_loss)
@@ -188,21 +204,28 @@ def run():
 
             logger.writerow([epoch, f'{train_loss:.6f}',
                              f'{val_loss:.6f}',  f"{val_metrics['mae']:.3f}",  f"{val_metrics['rmse']:.3f}",  f"{val_metrics['delta1']:.3f}",
-                             f'{test_loss:.6f}', f"{test_metrics['mae']:.3f}", f"{test_metrics['rmse']:.3f}", f"{test_metrics['delta1']:.3f}"])
+                             f'{test_loss:.6f}', f"{test_metrics['mae']:.3f}", f"{test_metrics['rmse']:.3f}", f"{test_metrics['delta1']:.3f}", f"{current_lr:.2e}"])
             log_file.flush()
 
             print(f"Epoch {epoch:04d}/{EPOCHS}  train={train_loss:.6f}  "
                   f"val={val_loss:.6f} (MAE={val_metrics['mae']:.3f}m  RMSE={val_metrics['rmse']:.3f}m  δ<1.25={val_metrics['delta1']:.3f})  "
-                  f"test={test_loss:.6f} (MAE={test_metrics['mae']:.3f}m  RMSE={test_metrics['rmse']:.3f}m  δ<1.25={test_metrics['delta1']:.3f})")
+                  f"test={test_loss:.6f} (MAE={test_metrics['mae']:.3f}m  RMSE={test_metrics['rmse']:.3f}m  δ<1.25={test_metrics['delta1']:.3f})  lr={current_lr:.2e}")
 
             # Save best checkpoint
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
+                patience_counter = 0
                 ckpt_path = os.path.join(CKPT_DIR, 'best.pth')
-                torch.save({'epoch': epoch, 'model': model.state_dict(),
+                state = model.module.state_dict() if isinstance(model, torch.nn.DataParallel) else model.state_dict()
+                torch.save({'epoch': epoch, 'model': state,
                             'val_loss': val_loss, 'metrics': val_metrics}, ckpt_path)
                 print(f"    -> saved best checkpoint (val={val_loss:.6f})")
 
+            else:
+                patience_counter += 1
+                if patience_counter >= EARLY_STOPPING_PATIENCE:
+                    print(f"Early stopping at epoch {epoch} (no improvement for {EARLY_STOPPING_PATIENCE} val checks)")
+                    break
             # loss + metric curves (updated every val/test check)
             plot_curves(epochs_train, losses_train,
                         epochs_val,   losses_val,  metrics_val,
@@ -218,18 +241,34 @@ def run():
         else:
             print(f'Epoch {epoch}/{EPOCHS}  train={train_loss:.6f}')
 
-    # ── End-of-training plots ─────────────────
+    # ── End-of-training plots (reload best checkpoint) ────────────────────
     end = time.time()
     print("Generating final diagnostic plots …")
-    plot_scatter(model, test_loader, DEVICE, PLOTS_DIR, thresh=DEPTH_THRESH)
-    plot_error_histogram(model, test_loader, DEVICE, PLOTS_DIR, thresh=DEPTH_THRESH)
+    best_ckpt_path = os.path.join(CKPT_DIR, 'best.pth')
+    best_ckpt = torch.load(best_ckpt_path, map_location=DEVICE)
+    plot_model = OrigUNet().to(DEVICE)
+    plot_model.load_state_dict(best_ckpt['model'])
+    print(f"  (using best.pth — epoch={best_ckpt.get('epoch','?')}, val_loss={best_ckpt.get('val_loss', '?'):.6f})")
+    scatter_bands = [
+        ('0 - 2.5 m',   0.0,   0.025),
+        ('2.5 - 5 m',   0.025, 0.05),
+        ('5 - 7.5 m',   0.05,  0.075),
+        ('7.5 - 10 m',  0.075, 0.10),
+        ('10 - 15 m',   0.1,   0.15),
+        ('15 - 20 m',   0.15,  DEPTH_THRESH),
+        ('Overall',     0.0,   DEPTH_THRESH),
+    ]
+    plot_scatter(plot_model, test_loader, DEVICE, PLOTS_DIR, thresh=DEPTH_THRESH, bands=scatter_bands)
+    plot_error_histogram(plot_model, test_loader, DEVICE, PLOTS_DIR, thresh=DEPTH_THRESH)
 
     # Save final checkpoint
-    torch.save({'epoch': EPOCHS, 'model': model.state_dict()},
+    state = model.module.state_dict() if isinstance(model, torch.nn.DataParallel) else model.state_dict()
+    torch.save({'epoch': EPOCHS, 'model': state,
+                'val_loss': losses_val[-1] if losses_val else None},
                os.path.join(CKPT_DIR, 'final.pth'))
     total_secs = int(end - start)
     time_str = f"{total_secs // 3600}h {(total_secs % 3600) // 60}m {total_secs % 60}s"
-    logger.writerow(['# Time Taken', time_str, '', '', '', '', '', '', '', ''])
+    logger.writerow(['# Time Taken', time_str, '', '', '', '', '', '', '', '',''])
     log_file.close()
 
     print(f"Training complete.")
