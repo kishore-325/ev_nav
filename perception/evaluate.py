@@ -53,11 +53,19 @@ def evaluate():
     acc = {label: {'sum_mae': 0.0, 'sum_sq': 0.0, 'sum_d1': 0.0, 'n': 0}
            for label, *_ in BANDS}
 
+    lstm_h       = None
+    reset_h_next = True
     with torch.no_grad():
-        for event, depth, _ in test_loader:
+        for event, depth, is_ep_end in test_loader:
+            if reset_h_next:
+                lstm_h       = None
+                reset_h_next = False
             event = event.to(DEVICE)
             depth = depth.to(DEVICE)
-            pred, _ = model(event)
+            pred, h_new = model(event, lstm_h)
+            lstm_h = [[hh.detach(), cc.detach()] for hh, cc in h_new]
+            if is_ep_end.any():
+                reset_h_next = True
 
             for label, lo, hi in BANDS:
                 mask = (depth >= lo) & (depth < hi)
