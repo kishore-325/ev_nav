@@ -29,7 +29,7 @@ def plot_curves(epochs_train, losses_train,
         axes[0].plot(epochs_test, losses_test, label='Test', color='tab:green',
                      marker='s', markersize=3, linewidth=1.2, linestyle='--')
     axes[0].set_xlabel('Epoch')
-    axes[0].set_ylabel('Masked MSE')
+    axes[0].set_ylabel('Combined Loss')
     axes[0].set_title('Loss Curves')
     axes[0].legend()
     axes[0].grid(True, alpha=0.3)
@@ -92,12 +92,12 @@ def plot_qualitative(model, test_loader, device, epoch, out_dir, n_samples=4, th
     loader_iter = iter(test_loader)
     for _ in range(skip_batches):
         next(loader_iter)
-    events, depths = next(loader_iter)
+    events, depths, _ = next(loader_iter)
     events = events[:n_samples].to(device)
     depths = depths[:n_samples].to(device)
 
     with torch.no_grad():
-        preds = model(events)
+        preds, _ = model(events)
 
     events_np = events.cpu().numpy()  # (N, 1, H, W)
     depths_np  = depths.cpu().numpy()
@@ -162,9 +162,9 @@ def plot_scatter(model, test_loader, device, out_dir, thresh=0.99, bands=None):
         # ── single overall scatter ──────────────────────────────────────────
         all_pred, all_gt = [], []
         with torch.no_grad():
-            for event, depth in test_loader:
+            for event, depth, _ in test_loader:
                 event, depth = event.to(device), depth.to(device)
-                pred = model(event)
+                pred, _ = model(event)
                 mask = (depth >= 0) & (depth < thresh)
                 all_pred.append(pred[mask].cpu().numpy() * 100.0)
                 all_gt.append(depth[mask].cpu().numpy()  * 100.0)
@@ -202,9 +202,9 @@ def plot_scatter(model, test_loader, device, out_dir, thresh=0.99, bands=None):
     band_gt   = {label: [] for label, *_ in plot_bands}
 
     with torch.no_grad():
-        for event, depth in test_loader:
+        for event, depth, _ in test_loader:
             event, depth = event.to(device), depth.to(device)
-            pred = model(event)
+            pred, _ = model(event)
             for label, lo, hi in plot_bands:
                 mask = (depth >= lo) & (depth < hi)
                 band_pred[label].append(pred[mask].cpu().numpy() * 100.0)
@@ -263,9 +263,9 @@ def plot_error_histogram(model, test_loader, device, out_dir, thresh=0.99):
     model.eval()
     all_errors = []
     with torch.no_grad():
-        for event, depth in test_loader:
+        for event, depth, _ in test_loader:
             event, depth = event.to(device), depth.to(device)
-            pred = model(event)
+            pred, _ = model(event)
             mask = (depth >= 0) & (depth < thresh)
             err  = (pred[mask] - depth[mask]).abs().cpu().numpy() * 100.0
             all_errors.append(err)

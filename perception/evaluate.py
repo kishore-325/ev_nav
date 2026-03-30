@@ -1,6 +1,7 @@
 import os
 import sys
 import torch
+import optuna
 from torch.utils.data import DataLoader
 
 sys.path.append(os.environ['FLIGHTMARE_PATH'])
@@ -37,8 +38,19 @@ def evaluate():
                               shuffle=False, num_workers=WORKERS, pin_memory=True)
 
     # ── Model ─────────────────────────────────────
-    model = OrigUNet().to(DEVICE)
+    try:
+        study = optuna.load_study(study_name='unet_depth_optuna-mod-run1',
+                                  storage='sqlite:///optuna_study-mod-run1.db')
+        lstm_kernel_size = study.best_params['lstm_kernel_size']
+        lstm_hidden_dim  = study.best_params['lstm_hidden_dim']
+        print(f'Loaded arch params from Optuna: lstm_kernel_size={lstm_kernel_size}, lstm_hidden_dim={lstm_hidden_dim}')
+    except Exception:
+        lstm_kernel_size = 1
+        lstm_hidden_dim  = 512
+        print('No Optuna study found, using default arch params.')
     ckpt  = torch.load(CKPT_PATH, map_location=DEVICE)
+    model = OrigUNet(lstm_kernel_size=lstm_kernel_size,
+                     lstm_hidden_dim=lstm_hidden_dim).to(DEVICE)
     model.load_state_dict(ckpt['model'])
     model.eval()
 
@@ -53,11 +65,19 @@ def evaluate():
     acc = {label: {'sum_mae': 0.0, 'sum_sq': 0.0, 'sum_d1': 0.0, 'n': 0}
            for label, *_ in BANDS}
 
+    lstm_h       = None
+    reset_h_next = True
     with torch.no_grad():
-        for event, depth in test_loader:
+        for event, depth, is_ep_end in test_loader:
+            if reset_h_next:
+                lstm_h       = None
+                reset_h_next = False
             event = event.to(DEVICE)
             depth = depth.to(DEVICE)
-            pred  = model(event)
+            pred, h_new = model(event, lstm_h)
+            lstm_h = [[hh.detach(), cc.detach()] for hh, cc in h_new]
+            if is_ep_end.any():
+                reset_h_next = True
 
             for label, lo, hi in BANDS:
                 mask = (depth >= lo) & (depth < hi)

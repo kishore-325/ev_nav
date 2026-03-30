@@ -1,5 +1,7 @@
-Best val_mae: 2.041m
+Best val_mae: 1.280m
 Best params:
-  lr:  0.0005521501181111565
-  berhu_c_frac:  0.22531727647046967
-  grad_weight:  1.6752484053200423
+  lr:  0.0003422299161881623
+  berhu_c_frac:  0.4057367290991475
+  grad_weight:  0.5621531487130902
+  lstm_kernel_size:  3
+  lstm_hidden_dim:  512
