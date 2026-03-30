@@ -1,0 +1,122 @@
+ Trial 29  |  Epoch 83/100  |  train=0.135610                                                                                                                                                                                                                                                                                [223/1933]
+    Trial 29  |  Epoch 84/100  |  train=0.137516                                  
+    Trial 29  |  Epoch 85/100  |  train=0.143467  val_loss=0.183904  val_mae=1.371m                                                                                  
+    Trial 29  |  Epoch 86/100  |  train=0.132844                                  
+    Trial 29  |  Epoch 87/100  |  train=0.129904                                  
+    Trial 29  |  Epoch 88/100  |  train=0.129158                                  
+    Trial 29  |  Epoch 89/100  |  train=0.132296                                  
+    Trial 29  |  Epoch 90/100  |  train=0.136830  val_loss=0.195858  val_mae=1.434m                                                                                  
+    Trial 29  |  Epoch 91/100  |  train=0.126158                                  
+    Trial 29  |  Epoch 92/100  |  train=0.122381                                  
+    Trial 29  |  Epoch 93/100  |  train=0.120457                                  
+    Trial 29  |  Epoch 94/100  |  train=0.119658                                  
+    Trial 29  |  Epoch 95/100  |  train=0.118993  val_loss=0.174994  val_mae=1.337m                                                                                  
+    Trial 29  |  Epoch 96/100  |  train=0.120952                                  
+    Trial 29  |  Epoch 97/100  |  train=0.118062                                  
+    Trial 29  |  Epoch 98/100  |  train=0.118945                                  
+    Trial 29  |  Epoch 99/100  |  train=0.131511                                  
+    Trial 29  |  Epoch 100/100  |  train=0.116847  val_loss=0.176576  val_mae=1.336m                                                                                 
+
+============================================================                      
+Trial 29 complete                                                                 
+  Best Epoch:    100                                                              
+  Best val_mae:  1.336m                                                           
+  Best val_loss: 0.176576                                                         
+  Best train:    0.116847                                                         
+  Params: lr=4.81e-04, berhu_c_frac=0.1315, grad_weight=0.8411, lstm_kernel_size=3, lstm_hidden_dim=512                                                              
+============================================================                      
+
+============================================================                      
+Time Taken: 12h 50m 6s                                                            
+Best val_mae: 1.280m                                                              
+Best params:                                                                      
+  lr:  0.0003118237100429318                                                      
+  berhu_c_frac:  0.3185894068280824                                               
+  grad_weight:  1.6844120277554144                                                
+  lstm_kernel_size:  3                                                            
+  lstm_hidden_dim:  256                                                           
+============================================================   
+============================================================                      
+
+Starting full training run with best params...                                    
+WARNING:torch.distributed.run:                                                    
+*****************************************                                         
+Setting OMP_NUM_THREADS environment variable for each process to be 1 in default, to avoid your system being overloaded, please further tune the variable for optimal performance in your application as needed.                                                                                                                          
+*****************************************                                         
+Loaded Optuna best params: lr=3.12e-04, berhu_c_frac=0.3186, grad_weight=1.6844, lstm_kernel_size=3, lstm_hidden_dim=256                                             
+Loaded Optuna best params: lr=3.12e-04, berhu_c_frac=0.3186, grad_weight=1.6844, lstm_kernel_size=3, lstm_hidden_dim=256                                             
+Loaded Optuna best params: lr=3.12e-04, berhu_c_frac=0.3186, grad_weight=1.6844, lstm_kernel_size=3, lstm_hidden_dim=256                                             
+Loaded Optuna best params: lr=3.12e-04, berhu_c_frac=0.3186, grad_weight=1.6844, lstm_kernel_size=3, lstm_hidden_dim=256                                             
+[EventDepthDataset] 63000 paired samples found  augment=False  episodes=2175                                                                                         
+[EventDepthDataset] 10800 paired samples found  augment=False  episodes=366                                                                                          
+[EventDepthDataset] 10800 paired samples found  augment=False  episodes=369                                                                                          
+Train: 63000  Val: 10800  Test: 10800  Device: cuda:0  GPUs: 4  Batch/GPU: 64  EffBatch: 256                                                                         
+Parameters: 14,575,553                                                            
+Epoch 0001/200  train=0.317665  val=0.254136 (MAE=2.701m  RMSE=4.282m  δ<1.25=0.399)  test=0.253929 (MAE=2.702m  RMSE=4.285m  δ<1.25=0.400)  lr=3.12e-04                                                                                                                                                                                  
+    -> saved best checkpoint (val=0.254136)                                       
+/home/srinivasan/ev_nav/perception/plot.py:143: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.                                                                                                                                                                          
+  fig.tight_layout()                                                              
+Epoch 2/200  train=0.227787                                                       
+Epoch 3/200  train=0.201571                                                       
+Epoch 4/200  train=0.186083                                                       
+Epoch 0005/200  train=0.180863  val=0.172902 (MAE=1.705m  RMSE=3.047m  δ<1.25=0.598)  test=0.172344 (MAE=1.708m  RMSE=3.049m  δ<1.25=0.599)  lr=3.12e-04                                                                                                                                                                                  
+    -> saved best checkpoint (val=0.172902)                                       
+Epoch 6/200  train=0.167508                                                       
+Epoch 7/200  train=0.163018                                                       
+Epoch 8/200  train=0.162243                                                       
+Epoch 9/200  train=0.156451                                                       
+Epoch 0010/200  train=0.152954  val=0.155225 (MAE=1.499m  RMSE=2.800m  δ<1.25=0.661)  test=0.154865 (MAE=1.500m  RMSE=2.798m  δ<1.25=0.662)  lr=3.12e-04                                                                                                                                                                                  
+    -> saved best checkpoint (val=0.155225)                                       
+Epoch 11/200  train=0.150604                                                      
+Epoch 12/200  train=0.148088                                                      
+Epoch 13/200  train=0.143672                       
+.
+.
+.
+.
+.
+Epoch 0150/200  train=0.086557  val=0.129036 (MAE=1.172m  RMSE=2.473m  δ<1.25=0.747)  test=0.128788 (MAE=1.174m  RMSE=2.475m  δ<1.25=0.747)  lr=7.80e-05                                                                                                                                                                                  
+    -> saved best checkpoint (val=0.129036)                                                                                                                                                                                                                                                                                               
+Epoch 151/200  train=0.086871                                                                                                                                                                                                                                                                                                             
+Epoch 152/200  train=0.086491                                                                                                                                                                                                                                                                                                             
+Epoch 153/200  train=0.086396                                                                                                                                                                                                                                                                                                             
+Epoch 154/200  train=0.087160                                                                                                                                                                                                                                                                                                             
+Epoch 0155/200  train=0.087792  val=0.131951 (MAE=1.189m  RMSE=2.474m  δ<1.25=0.749)  test=0.131541 (MAE=1.191m  RMSE=2.474m  δ<1.25=0.748)  lr=7.80e-05                                                                                                                                                                                  
+Epoch 156/200  train=0.087400                                                     
+Epoch 157/200  train=0.087066                                                     
+Epoch 158/200  train=0.086513                                                     
+Epoch 159/200  train=0.087741                                                     
+Epoch 0160/200  train=0.086378  val=0.129393 (MAE=1.171m  RMSE=2.475m  δ<1.25=0.748)  test=0.128991 (MAE=1.173m  RMSE=2.476m  δ<1.25=0.748)  lr=7.80e-05                                                                                                                                                                                  
+Epoch 161/200  train=0.085830                                                     
+Epoch 162/200  train=0.085983                                                     
+Epoch 163/200  train=0.086180                                                     
+Epoch 164/200  train=0.087194                                                     
+Epoch 0165/200  train=0.085541  val=0.129673 (MAE=1.170m  RMSE=2.473m  δ<1.25=0.749)  test=0.129287 (MAE=1.172m  RMSE=2.475m  δ<1.25=0.748)  lr=7.80e-05                                                                                                                                                                                  
+Epoch 166/200  train=0.085781                                                     
+Epoch 167/200  train=0.085365                                                     
+Epoch 168/200  train=0.085455                                                     
+Epoch 169/200  train=0.086372                                                     
+Epoch 0170/200  train=0.085904  val=0.130317 (MAE=1.168m  RMSE=2.470m  δ<1.25=0.749)  test=0.129889 (MAE=1.170m  RMSE=2.472m  δ<1.25=0.749)  lr=7.80e-05                                                                                                                                                                                  
+Epoch 171/200  train=0.084998                                                     
+Epoch 172/200  train=0.084857                                                     
+Epoch 173/200  train=0.085210                                                     
+Epoch 174/200  train=0.084631                                                     
+Epoch 0175/200  train=0.085646  val=0.132824 (MAE=1.207m  RMSE=2.524m  δ<1.25=0.746)  test=0.132390 (MAE=1.210m  RMSE=2.525m  δ<1.25=0.745)  lr=3.90e-05                                                                                                                                                                                  
+Epoch 176/200  train=0.087003                                                     
+Epoch 177/200  train=0.086400                                                     
+Epoch 178/200  train=0.086286                                                     
+Epoch 179/200  train=0.085640                                                     
+Epoch 0180/200  train=0.085166  val=0.129893 (MAE=1.162m  RMSE=2.465m  δ<1.25=0.750)  test=0.129619 (MAE=1.165m  RMSE=2.466m  δ<1.25=0.750)  lr=3.90e-05                                                                                                                                                                                  
+Epoch 181/200  train=0.084941                                                     
+Epoch 182/200  train=0.084472                                                     
+Epoch 183/200  train=0.084213                                                     
+Epoch 184/200  train=0.084044                                                     
+Epoch 0185/200  train=0.083982  val=0.130193 (MAE=1.161m  RMSE=2.466m  δ<1.25=0.750)  test=0.129860 (MAE=1.164m  RMSE=2.467m  δ<1.25=0.749)  lr=3.90e-05                                                                                                                                                                                  
+Early stopping at epoch 185 (no improvement for 7 val checks)                     
+Generating final diagnostic plots …                                      
+Generating final diagnostic plots …                                               
+  (using best.pth — epoch=150, val_loss=0.129036)                                 
+Training complete.                                                                
+Time Taken: 3h 48m 38s                                                            
+Training logs saved to: /home/srinivasan/ev_nav/perception/plots/train_log.csv                                                                                       
+Plots saved to: /home/srinivasan/ev_nav/perception/plots       
