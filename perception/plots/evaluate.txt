@@ -19,7 +19,7 @@ Test samples: 10800   Device: cuda
 
 [EventDepthDataset] 63000 paired samples found  augment=True  episodes=2175
 Loaded arch params from Optuna: lstm_kernel_size=3, lstm_hidden_dim=256
-
+  
 Loaded checkpoint  (epoch=120, val_loss=0.129428)
 Test samples: 63000   Device: cuda
 
