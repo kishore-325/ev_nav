@@ -41,7 +41,7 @@ n_train = len(train_dataset)
 n_val = len(val_dataset)
 
 # Log
-LOG_PATH = os.path.join('/home/srinivasan/ev_nav', 'perception', 'plots', 'tune_log.csv')
+LOG_PATH = os.path.join('/home/srinivasan/ev_nav', 'perception', 'plots', 'tune2_log.csv')
 log_file = open(LOG_PATH, 'w', newline='')
 logger = csv.writer(log_file)
 logger.writerow(['trial', 'best_epoch', 'train_loss', 'val_loss', 'val_mae',
