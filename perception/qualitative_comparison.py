@@ -21,6 +21,18 @@ import numpy as np
 import torch
 import matplotlib
 matplotlib.use('Agg')
+matplotlib.rcParams.update({
+    'font.family':      'sans-serif',
+    'font.sans-serif':  ['Arial', 'Helvetica', 'DejaVu Sans'],
+    'font.size':         8,
+    'axes.titlesize':    9,
+    'axes.titleweight': 'bold',
+    'axes.labelsize':    8,
+    'xtick.labelsize':   7,
+    'ytick.labelsize':   7,
+    'pdf.fonttype':     42,   # embed fonts as TrueType (IEEE/ACM requirement)
+    'ps.fonttype':      42,
+})
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
@@ -34,7 +46,7 @@ from perception.model_baseline import OrigUNet as BaselineUNet
 PROJECT_PATH  = os.environ['PROJECT_PATH']
 TEST_DIR      = os.path.join(PROJECT_PATH, 'datasets', 'Test')
 CKPT_DIR      = os.path.join(PROJECT_PATH, 'perception', 'checkpoints')
-OUT_PATH      = os.path.join(PROJECT_PATH, 'perception', 'plots', 'qualitative_comparison.png')
+OUT_PATH      = os.path.join(PROJECT_PATH, 'perception', 'plots', 'qualitative_comparison.pdf')
 
 SAMPLE_IDS    = [17, 59, 160, 260]   # sample00017, sample00059, sample00160, sample00260
 DEPTH_THRESH  = 0.20                 # normalised; ×100 = metres
@@ -51,7 +63,7 @@ MODELS = [
     ('CMA-ES',   'best.pth',          'origunet', False, 0.20),
 ]
 
-COL_TITLES = ['Event Input\n(log-difference)', 'Ground Truth',
+COL_TITLES = ['Event Input\n(Log-Difference)', 'Ground Truth',
               'Baseline', 'Manual', 'TPE', 'CMA-ES']
 
 
@@ -138,74 +150,82 @@ def main():
         print(f'  sample{idx:05d}  event={ev.shape}  depth={dep.shape}')
 
     n_rows = len(SAMPLE_IDS)    # 4
-    n_cols = len(COL_TITLES)    # 6  (event, gt, baseline, manual, tpe, cma-es)
+    n_cols = len(COL_TITLES)    # 6
 
-    fig = plt.figure(figsize=(3.2 * n_cols, 3.0 * n_rows))
-    gs  = gridspec.GridSpec(
+    # Image aspect ratio: 260 H × 346 W → each cell height ≈ width × 0.751
+    # Target full-width for a two-column IEEE paper (~7.16 in)
+    CELL_W  = 7.16 / n_cols          # ≈ 1.19 in per cell
+    CELL_H  = CELL_W * (260 / 346)   # ≈ 0.90 in per cell
+    FIG_W   = 7.16
+    FIG_H   = CELL_H * n_rows + 0.55  # +0.55 for column header row
+
+    fig = plt.figure(figsize=(FIG_W, FIG_H))
+
+    # Two GridSpecs side by side — narrow gap between col-1 and col-2
+    # to visually separate "inputs" (Event, GT) from "predictions"
+    gs = gridspec.GridSpec(
         n_rows, n_cols,
         figure=fig,
-        hspace=0.06,
-        wspace=0.04,
-        left=0.05, right=0.89,
-        top=0.93,  bottom=0.02,
+        hspace=0.03,
+        wspace=0.03,
+        left=0.01, right=0.88,
+        top=0.93,  bottom=0.01,
     )
 
     axes = [[fig.add_subplot(gs[r, c]) for c in range(n_cols)] for r in range(n_rows)]
 
-    # Column titles on first row
+    # ── Column headers ────────────────────────────────────────────────────────
     for c, title in enumerate(COL_TITLES):
-        axes[0][c].set_title(title, fontsize=10, fontweight='bold', pad=4)
+        axes[0][c].set_title(title, fontsize=8, fontweight='bold',
+                             pad=3, linespacing=1.3)
 
-    # Row labels (sample IDs) on left
-    for r, (idx, _, _) in enumerate(samples):
-        axes[r][0].set_ylabel(f'sample{idx:05d}', fontsize=8, rotation=90,
-                              labelpad=4, va='center')
-
-    im_20m  = None   # representative imshow for 0–20 m colorbar
-    im_99m  = None   # representative imshow for 0–99 m colorbar (baseline)
+    im_20m = None
+    im_99m = None
 
     for r, (idx, ev_np, dep_np) in enumerate(samples):
-        # ── col 0: event input ────────────────────────────────────────────────
-        rgb = event_to_rgb(ev_np)
-        axes[r][0].imshow(rgb)
+        # col 0 — event input
+        axes[r][0].imshow(event_to_rgb(ev_np), interpolation='lanczos')
 
-        # ── col 1: ground truth (masked at 0.20, same scale as tuned models) ─
+        # col 1 — ground truth (masked to 0–20 m)
         gt_disp = dep_np.copy()
         gt_disp[dep_np >= DEPTH_THRESH] = 0.0
-        im_20m = axes[r][1].imshow(gt_disp, cmap='plasma', vmin=0, vmax=DEPTH_THRESH)
+        im_20m = axes[r][1].imshow(gt_disp, cmap='plasma', vmin=0,
+                                   vmax=DEPTH_THRESH, interpolation='lanczos')
 
-        # ── cols 2-5: model predictions ───────────────────────────────────────
+        # cols 2-5 — model predictions
         for c, (name, model, sig, dt) in enumerate(models, start=2):
-            pred = run_inference(model, ev_np, sigmoid=sig)
+            pred      = run_inference(model, ev_np, sigmoid=sig)
             pred_disp = pred.copy()
             if dt < 0.99:
-                # tuned models: mask background pixels same as GT
                 pred_disp[dep_np >= DEPTH_THRESH] = 0.0
-                im = axes[r][c].imshow(pred_disp, cmap='plasma', vmin=0, vmax=dt)
+                im = axes[r][c].imshow(pred_disp, cmap='plasma', vmin=0,
+                                       vmax=dt, interpolation='lanczos')
                 im_20m = im
             else:
-                # baseline: no mask, full 0–99 m colorscale
-                im = axes[r][c].imshow(pred_disp, cmap='plasma', vmin=0, vmax=dt)
+                im = axes[r][c].imshow(pred_disp, cmap='plasma', vmin=0,
+                                       vmax=dt, interpolation='lanczos')
                 im_99m = im
 
         for c in range(n_cols):
             axes[r][c].axis('off')
 
-    # Two colorbars: one for GT+tuned models (0–20 m), one for baseline (0–99 m)
-    def _add_cbar(fig, im, x, label, vmax):
+    # ── Colorbars ─────────────────────────────────────────────────────────────
+    def _add_cbar(im, x, label, vmax, n_ticks=5):
         if im is None:
             return
-        cax = fig.add_axes([x, 0.08, 0.013, 0.78])
+        cax = fig.add_axes([x, gs.get_subplot_params().bottom,
+                            0.012, gs.get_subplot_params().top - gs.get_subplot_params().bottom])
         cb  = fig.colorbar(im, cax=cax)
-        cb.set_label(label, fontsize=7)
-        ticks = np.linspace(0, vmax, 5)
+        cb.set_label(label, fontsize=7, labelpad=3)
+        ticks = np.linspace(0, vmax, n_ticks)
         cb.set_ticks(ticks)
-        cb.set_ticklabels([f'{t*100:.0f} m' for t in ticks], fontsize=7)
+        cb.set_ticklabels([f'{t*100:.0f} m' for t in ticks], fontsize=6)
+        cb.ax.tick_params(length=2, pad=1)
 
-    _add_cbar(fig, im_20m, 0.91, 'Depth  0–20 m', DEPTH_THRESH)
-    _add_cbar(fig, im_99m, 0.95, 'Depth  0–99 m\n(Baseline)', 0.99)
+    _add_cbar(im_20m, 0.895, 'Depth (GT / Predictions)', DEPTH_THRESH)
+    _add_cbar(im_99m, 0.950, 'Depth — Baseline',         0.99)
 
-    fig.savefig(OUT_PATH, dpi=150, bbox_inches='tight')
+    fig.savefig(OUT_PATH, bbox_inches='tight', metadata={'Creator': ''})
     plt.close(fig)
     print(f'\nSaved → {OUT_PATH}')
 
