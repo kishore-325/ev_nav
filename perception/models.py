@@ -3,134 +3,133 @@ import torch.nn as nn
 import torch.nn.functional as F
 from perception.ConvLSTM_pytorch.convlstm import ConvLSTM
 
-class OrigUNet(nn.Module):
+
+class BasicBlock(nn.Module):
+    """ResNet18 residual block."""
+    def __init__(self, in_ch, out_ch, stride=1):
+        super().__init__()
+        self.conv1 = nn.Conv2d(in_ch, out_ch, 3, stride=stride, padding=1, bias=False)
+        self.bn1   = nn.BatchNorm2d(out_ch)
+        self.conv2 = nn.Conv2d(out_ch, out_ch, 3, padding=1, bias=False)
+        self.bn2   = nn.BatchNorm2d(out_ch)
+        self.shortcut = nn.Sequential(
+            nn.Conv2d(in_ch, out_ch, 1, stride=stride, bias=False),
+            nn.BatchNorm2d(out_ch),
+        ) if (stride != 1 or in_ch != out_ch) else nn.Identity()
+
+    def forward(self, x):
+        out = F.relu(self.bn1(self.conv1(x)))
+        out = self.bn2(self.conv2(out))
+        return F.relu(out + self.shortcut(x))
+
+
+class DecoderBlock(nn.Module):
+    """Bilinear upsample → concat skip → two conv+BN+ReLU."""
+    def __init__(self, in_ch, skip_ch, out_ch):
+        super().__init__()
+        self.conv1 = nn.Conv2d(in_ch + skip_ch, out_ch, 3, padding=1, bias=False)
+        self.bn1   = nn.BatchNorm2d(out_ch)
+        self.conv2 = nn.Conv2d(out_ch, out_ch, 3, padding=1, bias=False)
+        self.bn2   = nn.BatchNorm2d(out_ch)
+
+    def forward(self, x, skip):
+        x = F.interpolate(x, size=skip.shape[2:], mode='bilinear', align_corners=False)
+        x = F.relu(self.bn1(self.conv1(torch.cat([x, skip], dim=1))))
+        return F.relu(self.bn2(self.conv2(x)))
+
+
+class ResNet18UNet(nn.Module):
     """
-    5-layer UNet for log-difference → depth estimation.
-    Adapted from evfly/learner/learner_models.py (depth prediction only).
+    ResNet18 encoder (trained from scratch) + UNet-style decoder.
 
     Input:  (N, 1, 260, 346)  single-channel log-diff
-    Output: (N, 1, 260, 346)  depth map in [0, 1]  (×100 → metric metres)
+    Output: (N, 1, 260, 346)  depth map in [0, 1]  (×100 → metres)
+
+    Spatial sizes (H×W) through the encoder for input 260×346:
+        stem  (stride 2)   →  64 ch, 130×173
+        pool  (stride 2)   →  64 ch,  65×87
+        layer1 (stride 1)  →  64 ch,  65×87
+        layer2 (stride 2)  → 128 ch,  33×44
+        layer3 (stride 2)  → 256 ch,  17×22
+        layer4 (stride 2)  → 512 ch,   9×11  ← ConvLSTM here
     """
 
     def __init__(self, input_mode=1, evs_min_cutoff=0):
         super().__init__()
-        self.input_mode = input_mode        # 1 = 2-ch polarity, 2 = 1-ch binary mask
+        self.input_mode     = input_mode
         self.evs_min_cutoff = evs_min_cutoff
-        self.input_h = 260
-        self.input_w = 346
-
         in_ch = 2 if input_mode == 1 else 1
 
-        #----------Encoder-----------
-        self.e11 = nn.Conv2d(in_ch, 32, kernel_size=3, padding=0)  # (N,32,258,344)
-        self.e12 = nn.Conv2d(32, 32, kernel_size=3, padding=0)   # (N,32,256,342)
-        self.pool1 = nn.MaxPool2d(2,2)                           # (N,32,128,171)
+        # Encoder
+        self.stem   = nn.Sequential(
+            nn.Conv2d(in_ch, 64, 7, stride=2, padding=3, bias=False),
+            nn.BatchNorm2d(64), nn.ReLU(),
+        )                                                            # (N,  64, 130, 173)
+        self.pool   = nn.MaxPool2d(3, stride=2, padding=1)          # (N,  64,  65,  87)
+        self.layer1 = self._make_layer( 64,  64, n=2, stride=1)     # (N,  64,  65,  87)
+        self.layer2 = self._make_layer( 64, 128, n=2, stride=2)     # (N, 128,  33,  44)
+        self.layer3 = self._make_layer(128, 256, n=2, stride=2)     # (N, 256,  17,  22)
+        self.layer4 = self._make_layer(256, 512, n=2, stride=2)     # (N, 512,   9,  11)
 
-        self.e21 = nn.Conv2d(32, 64, kernel_size=3, padding=0)
-        self.e22 = nn.Conv2d(64, 64, kernel_size=3, padding=0)   # (N,64,124,167)
-        self.pool2 = nn.MaxPool2d(2, 2)                          # (N,64,62,83)
-
-        self.e31 = nn.Conv2d(64, 128, kernel_size=3, padding=0)  
-        self.e32 = nn.Conv2d(128, 128, kernel_size=3, padding=0) # (N,128,58,79)
-        self.pool3 = nn.MaxPool2d(2, 2)                          # (N,128,29,39)
-
-        self.e41 = nn.Conv2d(128, 256, kernel_size=3, padding=0)
-        self.e42 = nn.Conv2d(256, 256, kernel_size=3, padding=0)  # (N,256,25,35)
-        self.pool4 = nn.MaxPool2d(2, 2)                           # (N,256,12,17)
-
-        self.e51 = nn.Conv2d(256, 512, kernel_size=3, padding=0)
-        self.e52 = nn.Conv2d(512, 512, kernel_size=3, padding=0)  # (N,512,8,13) bottleneck
-
-        #---------Decoder (skip = bilinear interp)---------
-        self.upconv1 = nn.ConvTranspose2d(512, 256, kernel_size=2, stride=2)  # (N,256,16,26)
-        self.d11 = nn.Conv2d(512, 256, kernel_size=3, padding=0)
-        self.d12 = nn.Conv2d(256, 256, kernel_size=3, padding=0)
-
-        self.upconv2 = nn.ConvTranspose2d(256, 128, kernel_size=2, stride=2)  # (N,128,24,44)
-        self.d21 = nn.Conv2d(256, 128, kernel_size=3, padding=0)
-        self.d22 = nn.Conv2d(128, 128, kernel_size=3, padding=0)
-
-        self.upconv3 = nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)  # (N,64,40,80) → after crop+conv → (N,64,36,76)
-        self.d31 = nn.Conv2d(128, 64, kernel_size=3, padding=0)
-        self.d32 = nn.Conv2d(64, 64, kernel_size=3, padding=0)
-
-        self.upconv4 = nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2)   # (N,32,72,152)
-        self.d41 = nn.Conv2d(64, 32, kernel_size=3, padding=0)
-        self.d42 = nn.Conv2d(32, 32, kernel_size=3, padding=0)
-
-        self.out_conv = nn.Conv2d(32, 1, kernel_size=1)     # (N, 1, 68, 148)
-
-        self.nonlin = nn.ReLU()
-
-        # ConvLSTM at bottleneck (1 layer, 1x1 kernel)
+        # ConvLSTM at bottleneck
         self.lstm = ConvLSTM(input_dim=512, hidden_dim=[512], num_layers=1,
                              kernel_size=(1, 1), bias=False, batch_first=True,
                              return_all_layers=False)
 
-    def _form_input(self, x):
-        """
-        Preprocess single-channel event frame based on input_mode.
-        x: (N, 1, H, W)
+        # Decoder
+        self.dec4 = DecoderBlock(512, 256, 256)   # → (N, 256, 17, 22)
+        self.dec3 = DecoderBlock(256, 128, 128)   # → (N, 128, 33, 44)
+        self.dec2 = DecoderBlock(128,  64,  64)   # → (N,  64, 65, 87)
+        self.dec1 = DecoderBlock( 64,  64,  32)   # → (N,  32, 130, 173)
 
-        mode 1 (polarity): returns (N, 2, H, W) — channel-0 = |neg|, channel-1 = pos
-        mode 2 (bev):      returns (N, 1, H, W) — binary mask, 1 where events exist
-        """
+        self.out_conv = nn.Conv2d(32, 1, kernel_size=1)
+
+    @staticmethod
+    def _make_layer(in_ch, out_ch, n, stride):
+        layers = [BasicBlock(in_ch, out_ch, stride)]
+        for _ in range(1, n):
+            layers.append(BasicBlock(out_ch, out_ch))
+        return nn.Sequential(*layers)
+
+    def _form_input(self, x):
         if self.input_mode == 1:
             x = x.clone()
             x[x.abs() < self.evs_min_cutoff] = 0.0
             ch_neg = torch.where(x < 0, x.abs(), torch.zeros_like(x))[:, 0]
             ch_pos = torch.where(x > 0, x, torch.zeros_like(x))[:, 0]
             return torch.stack([ch_neg, ch_pos], dim=1)
-        else:  # mode 2
+        else:
             mask = torch.zeros_like(x)
             mask[x != 0.0] = 1.0
             return mask
 
-    @staticmethod
-    def _skip(enc, target_h, target_w):
-        """Bilinear interpolate encoder feature map to (target_h, target_w)."""
-        return F.interpolate(enc, size=(target_h, target_w), mode='bilinear', align_corners=False)
-    
     def forward(self, x, h=None):
         """
-        x: (N, 1, 260, 346) single-channel event frame
-        h: hidden state for ConvLSTM (None on first call)
+        x: (N, 1, 260, 346)  single-channel log-diff event frame
+        h: ConvLSTM hidden state (None on first call)
         returns: (depth, h_new)
-            depth: (N, 1, 260, 346) depth in [0, 1]
+            depth: (N, 1, 260, 346) in [0, 1]
             h_new: updated ConvLSTM hidden state
         """
-        im = self._form_input(x)    # (N, in_ch, 260, 346)
+        im = self._form_input(x)               # (N,   2, 260, 346)
 
         # Encoder
-        e1 = self.nonlin(self.e12(self.nonlin(self.e11(im))))               # (N,32,256,342)
-        e2 = self.nonlin(self.e22(self.nonlin(self.e21(self.pool1(e1)))))   # (N,64,124,167)
-        e3 = self.nonlin(self.e32(self.nonlin(self.e31(self.pool2(e2)))))   # (N,128,58,79)
-        e4 = self.nonlin(self.e42(self.nonlin(self.e41(self.pool3(e3)))))   # (N,256,25,35)
-        e5 = self.nonlin(self.e52(self.nonlin(self.e51(self.pool4(e4)))))   # (N,512,8,13)
+        e0 = self.stem(im)                     # (N,  64, 130, 173)
+        e1 = self.layer1(self.pool(e0))        # (N,  64,  65,  87)
+        e2 = self.layer2(e1)                   # (N, 128,  33,  44)
+        e3 = self.layer3(e2)                   # (N, 256,  17,  22)
+        e4 = self.layer4(e3)                   # (N, 512,   9,  11)
 
         # ConvLSTM at bottleneck
-        e5_lstm, h_new = self.lstm(e5.unsqueeze(0), h)  # add seq dim
-        e5 = e5_lstm[0].squeeze(0)                       # remove seq dim
+        e4_seq, h_new = self.lstm(e4.unsqueeze(0), h)
+        e4 = e4_seq[0].squeeze(0)
 
         # Decoder
-        up1 = self.upconv1(e5)                                              # (N,256,16,26)
-        d1 = self.nonlin(self.d12(self.nonlin(self.d11(
-            torch.cat([self._skip(e4, 16, 26), up1], dim=1)))))             # (N,256,12,22)
+        d = self.dec4(e4, e3)                  # (N, 256,  17,  22)
+        d = self.dec3(d,  e2)                  # (N, 128,  33,  44)
+        d = self.dec2(d,  e1)                  # (N,  64,  65,  87)
+        d = self.dec1(d,  e0)                  # (N,  32, 130, 173)
 
-        up2 = self.upconv2(d1)                                              # (N,128,24,44)
-        d2 = self.nonlin(self.d22(self.nonlin(self.d21(
-            torch.cat([self._skip(e3, 24, 44), up2], dim=1)))))             # (N,128,20,40)
-
-        up3 = self.upconv3(d2)                                              # (N,64,40,80)
-        d3 = self.nonlin(self.d32(self.nonlin(self.d31(
-            torch.cat([self._skip(e2, 40, 80), up3], dim=1)))))             # (N,64,36,76)
-
-        up4 = self.upconv4(d3)                                              # (N,32,72,152)
-        d4 = self.nonlin(self.d42(self.nonlin(self.d41(
-            torch.cat([self._skip(e1, 72, 152), up4], dim=1)))))            # (N,32,68,148)
-
-        y = self.out_conv(d4)                                               # (N,1,68,148)
-
-        # Upsample to input resolution
-        y = F.interpolate(y, size=(self.input_h, self.input_w), mode='bilinear', align_corners=False)
-        return y, h_new                                                      # (N,1,260,346)
+        y = self.out_conv(d)                   # (N,   1, 130, 173)
+        y = F.interpolate(y, size=(260, 346), mode='bilinear', align_corners=False)
+        return y, h_new                        # (N,   1, 260, 346)

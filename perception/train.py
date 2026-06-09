@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader, Sampler
 sys.path.append(os.environ['FLIGHTMARE_PATH'])
 sys.path.append(os.environ['PROJECT_PATH'])
 
-from perception.models import OrigUNet
+from perception.models import ResNet18UNet
 from perception.dataset import EventDepthDataset
 from perception.plot import (plot_curves, plot_qualitative,
                               plot_scatter, plot_error_histogram)
@@ -178,7 +178,7 @@ def run(rank, world_size):
               f'EffBatch: {BATCH_SIZE * world_size}')
 
     # ── Model ─────────────────────────────────
-    model = OrigUNet().to(device)
+    model = ResNet18UNet().to(device)
     if use_ddp:
         model = DDP(model, device_ids=[rank])
 
@@ -325,7 +325,7 @@ def run(rank, world_size):
     if is_main:
         print('Generating final diagnostic plots …')
         best_ckpt = torch.load(os.path.join(CKPT_DIR, 'best.pth'), map_location=device)
-        plot_model = OrigUNet().to(device)
+        plot_model = ResNet18UNet().to(device)
         plot_model.load_state_dict(best_ckpt['model'])
         print(f"  (using best.pth — epoch={best_ckpt.get('epoch','?')}, "
               f"val_loss={best_ckpt.get('val_loss', '?'):.6f})")
