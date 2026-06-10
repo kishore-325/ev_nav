@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader
 sys.path.append(os.environ['FLIGHTMARE_PATH'])
 sys.path.append(os.environ['PROJECT_PATH'])
 
-from perception.models import OrigUNet
+from perception.models import ResNet18UNet
 from perception.dataset import EventDepthDataset
 
 TEST_DATASETS_DIR = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Test')
@@ -37,7 +37,7 @@ def evaluate():
                               shuffle=False, num_workers=WORKERS, pin_memory=True)
 
     # ── Model ─────────────────────────────────────
-    model = OrigUNet().to(DEVICE)
+    model = ResNet18UNet().to(DEVICE)
     ckpt  = torch.load(CKPT_PATH, map_location=DEVICE)
     model.load_state_dict(ckpt['model'])
     model.eval()
