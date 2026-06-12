@@ -116,10 +116,14 @@ def evaluate(model, loader, device, n_samples):
     model.eval()
     total_loss = 0.0
     sum_mae = 0.0; sum_rmse = 0.0; sum_d1 = 0.0
+    lstm_h = None
     with torch.no_grad():
-        for event, depth, _ in loader:
+        for event, depth, is_ep_end in loader:
             event = event.to(device); depth = depth.to(device)
-            pred, _ = model(event)
+            pred, h_new = model(event, lstm_h)
+            lstm_h = [[hh.detach(), cc.detach()] for hh, cc in h_new]
+            if is_ep_end.any():
+                lstm_h = None
             n = event.size(0)
             total_loss += combined_loss(pred, depth).item() * n
             m = compute_metrics(pred, depth)
