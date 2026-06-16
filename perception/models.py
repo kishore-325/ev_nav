@@ -19,9 +19,9 @@ class DecoderBlock(nn.Module):
         x = F.relu(self.bn1(self.conv1(torch.cat([x, skip], dim=1))))
         return F.relu(self.bn2(self.conv2(x)))
 
-class EfficientNetB0UNet(nn.Module):
+class EfficientNetB2UNet(nn.Module):
     """
-    EfficientNet-B0 encoder + UNet-style decoder with ConvLSTM at bottleneck.
+    EfficientNet-B2 encoder + UNet-style decoder with ConvLSTM at bottleneck.
 
     Input:  (N, 1, 260, 346)  single-channel log-diff
     Output: (N, 1, 260, 346)  depth map (raw logits, apply sigmoid externally)
@@ -29,9 +29,9 @@ class EfficientNetB0UNet(nn.Module):
     Encoder feature sizes for input 260×346:
         f0:  16ch, 130×173
         f1:  24ch,  65×87
-        f2:  40ch,  33×44
-        f3: 112ch,  17×22
-        f4: 320ch,   9×11  ← ConvLSTM here
+        f2:  48ch,  33×44
+        f3: 120ch,  17×22
+        f4: 352ch,   9×11  ← ConvLSTM here
     """
 
     def __init__(self, input_mode=1, evs_min_cutoff=0,
@@ -42,7 +42,7 @@ class EfficientNetB0UNet(nn.Module):
         in_ch = 2 if input_mode == 1 else 1
 
         self.encoder = timm.create_model(
-            'efficientnet_b0',
+            'efficientnet_b2',
             pretrained=False,
             in_chans = in_ch,
             features_only = True,
@@ -50,7 +50,7 @@ class EfficientNetB0UNet(nn.Module):
         )
 
         self.lstm = ConvLSTM(
-            input_dim=320,
+            input_dim=352,
             hidden_dim=[lstm_hidden_dim],
             kernel_size=(lstm_kernel_size, lstm_kernel_size),
             num_layers =1,
@@ -59,8 +59,8 @@ class EfficientNetB0UNet(nn.Module):
             return_all_layers=False,
         )
 
-        self.dec4 = DecoderBlock(lstm_hidden_dim, 112, 256)
-        self.dec3 = DecoderBlock(256, 40, 128)
+        self.dec4 = DecoderBlock(lstm_hidden_dim, 120, 256)
+        self.dec3 = DecoderBlock(256, 48, 128)
         self.dec2 = DecoderBlock(128, 24, 64)
         self.dec1 = DecoderBlock(64, 16, 32)
 
@@ -93,7 +93,7 @@ class EfficientNetB0UNet(nn.Module):
         im = self._form_input(x)                       # (N,  2, 260, 346)          
 
         #Encoder
-        f0, f1, f2, f3, f4 = self.encoder(im)         # 16, 24, 40, 112, 320 ch
+        f0, f1, f2, f3, f4 = self.encoder(im)         # 16, 24, 48, 120, 352 ch
 
         #ConvLSTM at bottleneck
         f4_seq, h_new = self.lstm(f4.unsqueeze(0), h)

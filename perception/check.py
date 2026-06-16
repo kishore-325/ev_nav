@@ -2,7 +2,7 @@ import torch
 import timm
 
 encoder = timm.create_model(
-    'efficientnet_b0',
+    'efficientnet_b2',
     pretrained=False,
     in_chans = 2,
     features_only = True,
