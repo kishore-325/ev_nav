@@ -1,10 +1,8 @@
 import os
 import sys
 import csv
-import json
 import torch
 import torch.distributed as dist
-import torch.nn.functional as F
 import time
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, Sampler
@@ -12,7 +10,7 @@ from torch.utils.data import DataLoader, Sampler
 sys.path.append(os.environ['FLIGHTMARE_PATH'])
 sys.path.append(os.environ['PROJECT_PATH'])
 
-from perception.models import ResNet18UNet
+from perception.models import EfficientNetB0UNet
 from perception.dataset import EventDepthDataset
 from perception.plot import (plot_curves, plot_qualitative,
                               plot_scatter, plot_error_histogram)
@@ -26,14 +24,14 @@ TEST_DATASETS_DIR  = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Test'
 CKPT_DIR           = os.path.join('/home/srinivasan/ev_nav_run2', 'perception', 'checkpoints')
 PLOTS_DIR          = os.path.join('/home/srinivasan/ev_nav_run2', 'perception', 'plots')
 EPOCHS        = 200
-BATCH_SIZE    = 64          # per GPU
+BATCH_SIZE    = 16          # per GPU
 LR            = 1e-4
 EARLY_STOPPING_PATIENCE = 7
 DEPTH_THRESH  = 0.20
 WORKERS       = 4
 QUAL_EVERY    = 20
 QUAL_SAMPLES  = 4
-QUAL_SKIP     = 2
+QUAL_SKIP     = 128 // BATCH_SIZE  # always skip same 128 samples regardless of batch size
 
 
 # ──────────────────────────────────────────────
@@ -116,10 +114,14 @@ def evaluate(model, loader, device, n_samples):
     model.eval()
     total_loss = 0.0
     sum_mae = 0.0; sum_rmse = 0.0; sum_d1 = 0.0
+    lstm_h = None
     with torch.no_grad():
-        for event, depth, _ in loader:
+        for event, depth, is_ep_end in loader:
             event = event.to(device); depth = depth.to(device)
-            pred, _ = model(event)
+            pred, h_new = model(event, lstm_h)
+            lstm_h = [[hh.detach(), cc.detach()] for hh, cc in h_new]
+            if is_ep_end.any():
+                lstm_h = None
             n = event.size(0)
             total_loss += combined_loss(pred, depth).item() * n
             m = compute_metrics(pred, depth)
@@ -178,7 +180,7 @@ def run(rank, world_size):
               f'EffBatch: {BATCH_SIZE * world_size}')
 
     # ── Model ─────────────────────────────────
-    model = ResNet18UNet().to(device)
+    model = EfficientNetB0UNet().to(device)
     if use_ddp:
         model = DDP(model, device_ids=[rank])
 
@@ -325,7 +327,7 @@ def run(rank, world_size):
     if is_main:
         print('Generating final diagnostic plots …')
         best_ckpt = torch.load(os.path.join(CKPT_DIR, 'best.pth'), map_location=device)
-        plot_model = ResNet18UNet().to(device)
+        plot_model = EfficientNetB0UNet().to(device)
         plot_model.load_state_dict(best_ckpt['model'])
         print(f"  (using best.pth — epoch={best_ckpt.get('epoch','?')}, "
               f"val_loss={best_ckpt.get('val_loss', '?'):.6f})")
