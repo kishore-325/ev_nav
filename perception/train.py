@@ -3,6 +3,7 @@ import sys
 import csv
 import json
 import torch
+import datetime
 import torch.distributed as dist
 import torch.nn.functional as F
 import time
@@ -23,8 +24,8 @@ from perception.plot import (plot_curves, plot_qualitative,
 TRAIN_DATASETS_DIR = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Train')
 VAL_DATASETS_DIR   = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Val')
 TEST_DATASETS_DIR  = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Test')
-CKPT_DIR           = os.path.join('/home/srinivasan/ev_nav_run2', 'perception', 'checkpoints')
-PLOTS_DIR          = os.path.join('/home/srinivasan/ev_nav_run2', 'perception', 'plots')
+CKPT_DIR           = os.path.join('/home/srinivasan/ev_nav', 'perception', 'checkpoints')
+PLOTS_DIR          = os.path.join('/home/srinivasan/ev_nav', 'perception', 'plots')
 EPOCHS        = 200
 BATCH_SIZE    = 64          # per GPU
 LR            = 1e-4
