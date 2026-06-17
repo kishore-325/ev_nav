@@ -2,11 +2,11 @@ import torch
 import timm
 
 encoder = timm.create_model(
-    'mobilenetv3_large_100',
+    'vgg11',
     pretrained=False,
     in_chans = 2,
     features_only = True,
-    out_indices = (0,1,2,3,4),
+    out_indices = (0,1,2,3,4,5),
 )
 
 x = torch.zeros(1, 2, 260, 346)

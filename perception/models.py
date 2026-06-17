@@ -19,19 +19,20 @@ class DecoderBlock(nn.Module):
         x = F.relu(self.bn1(self.conv1(torch.cat([x, skip], dim=1))))
         return F.relu(self.bn2(self.conv2(x)))
 
-class MobileNetV3UNet(nn.Module):
+class Vgg11UNet(nn.Module):
     """
-    EfficientNet-B0 encoder + UNet-style decoder with ConvLSTM at bottleneck.
+    VGG-11 encoder + UNet-style decoder with ConvLSTM at bottleneck.
 
     Input:  (N, 1, 260, 346)  single-channel log-diff
     Output: (N, 1, 260, 346)  depth map (raw logits, apply sigmoid externally)
 
     Encoder feature sizes for input 260×346:
-        f0:  16ch, 130×173
-        f1:  24ch,  65×87
-        f2:  40ch,  33×44
-        f3: 112ch,  17×22
-        f4: 960ch,   9×11  ← ConvLSTM here
+        f0:  64ch, 260×346
+        f1: 128ch, 130x173
+        f2: 256ch,  65×86
+        f3: 512ch,  32×43
+        f4: 512ch,  16×21
+        f5: 512ch,   8×10  ← ConvLSTM here
     """
 
     def __init__(self, input_mode=1, evs_min_cutoff=0,
@@ -42,15 +43,15 @@ class MobileNetV3UNet(nn.Module):
         in_ch = 2 if input_mode == 1 else 1
 
         self.encoder = timm.create_model(
-            'mobilenetv3_large_100',
+            'vgg11',
             pretrained=False,
             in_chans = in_ch,
             features_only = True,
-            out_indices = (0, 1, 2, 3, 4),
+            out_indices = (0, 1, 2, 3, 4, 5),
         )
 
         self.lstm = ConvLSTM(
-            input_dim=960,
+            input_dim=512,
             hidden_dim=[lstm_hidden_dim],
             kernel_size=(lstm_kernel_size, lstm_kernel_size),
             num_layers =1,
@@ -59,10 +60,10 @@ class MobileNetV3UNet(nn.Module):
             return_all_layers=False,
         )
 
-        self.dec4 = DecoderBlock(lstm_hidden_dim, 112, 256)
-        self.dec3 = DecoderBlock(256, 40, 128)
-        self.dec2 = DecoderBlock(128, 24, 64)
-        self.dec1 = DecoderBlock(64, 16, 32)
+        self.dec4 = DecoderBlock(lstm_hidden_dim, 512, 256)
+        self.dec3 = DecoderBlock(256, 512, 128)
+        self.dec2 = DecoderBlock(128, 256, 64)
+        self.dec1 = DecoderBlock(64, 128, 32)
 
         self.out_conv = nn.Conv2d(32, 1, kernel_size=1)
 
@@ -93,17 +94,17 @@ class MobileNetV3UNet(nn.Module):
         im = self._form_input(x)                       # (N,  2, 260, 346)          
 
         #Encoder
-        f0, f1, f2, f3, f4 = self.encoder(im)         # 16, 24, 40, 112, 960 ch
+        f0, f1, f2, f3, f4, f5 = self.encoder(im)         # 64, 128, 256, 512, 512, 512 ch
 
         #ConvLSTM at bottleneck
-        f4_seq, h_new = self.lstm(f4.unsqueeze(0), h)
-        f4 = f4_seq[0].squeeze(0)
+        f5_seq, h_new = self.lstm(f5.unsqueeze(0), h)
+        f5 = f5_seq[0].squeeze(0)
 
         #Decoder
-        d = self.dec4(f4, f3)                         # (N, 256, 17, 22)
-        d = self.dec3(d, f2)                          # (N, 128, 33, 44)
-        d = self.dec2(d, f1)                          # (N, 64, 65, 87)
-        d = self.dec1(d, f0)                          # (N, 32, 130, 173)
+        d = self.dec4(f5, f4)                         # (N, 256, 16, 21)
+        d = self.dec3(d, f3)                          # (N, 128, 32, 43)
+        d = self.dec2(d, f2)                          # (N,  64, 65, 86)
+        d = self.dec1(d, f1)                          # (N,  32, 130, 173)
 
         y = self.out_conv(d)                          # (N, 1, 130, 173)
         y = F.interpolate(y, size=(260, 346), mode="bilinear", align_corners=False)
