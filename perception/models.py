@@ -26,8 +26,8 @@ class AlexNetUNet(nn.Module):
     Output: (N, 1, 260, 346)  depth map (raw logits, apply sigmoid externally)
 
     Encoder feature sizes for input 260×346:
-        e0:  96ch,  64×85   (after conv1, before pool1)
-        e1: 256ch,  31×42   (after conv2, before pool2)
+        e0:  96ch,  63×84   (after conv1, before pool1)
+        e1: 256ch,  31×41   (after conv2, before pool2)
         e2: 384ch,  15×20   (after conv3)
         e3: 256ch,   7×9    ← ConvLSTM here (after conv5 + pool3)
     """
