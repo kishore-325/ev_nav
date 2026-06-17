@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader, Sampler
 sys.path.append(os.environ['FLIGHTMARE_PATH'])
 sys.path.append(os.environ['PROJECT_PATH'])
 
-from perception.models import EfficientNetB0UNet
+from perception.models import MobileNetV3UNet
 from perception.dataset import EventDepthDataset
 from perception.plot import (plot_curves, plot_qualitative,
                               plot_scatter, plot_error_histogram)
@@ -21,8 +21,8 @@ from perception.plot import (plot_curves, plot_qualitative,
 TRAIN_DATASETS_DIR = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Train')
 VAL_DATASETS_DIR   = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Val')
 TEST_DATASETS_DIR  = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Test')
-CKPT_DIR           = os.path.join('/home/srinivasan/ev_nav_run2', 'perception', 'checkpoints')
-PLOTS_DIR          = os.path.join('/home/srinivasan/ev_nav_run2', 'perception', 'plots')
+CKPT_DIR           = os.path.join('/home/srinivasan/ev_nav', 'perception', 'checkpoints')
+PLOTS_DIR          = os.path.join('/home/srinivasan/ev_nav', 'perception', 'plots')
 EPOCHS        = 200
 BATCH_SIZE    = 16          # per GPU
 LR            = 1e-4
@@ -180,7 +180,7 @@ def run(rank, world_size):
               f'EffBatch: {BATCH_SIZE * world_size}')
 
     # ── Model ─────────────────────────────────
-    model = EfficientNetB0UNet().to(device)
+    model = MobileNetV3UNet().to(device)
     if use_ddp:
         model = DDP(model, device_ids=[rank])
 
@@ -327,7 +327,7 @@ def run(rank, world_size):
     if is_main:
         print('Generating final diagnostic plots …')
         best_ckpt = torch.load(os.path.join(CKPT_DIR, 'best.pth'), map_location=device)
-        plot_model = EfficientNetB0UNet().to(device)
+        plot_model = MobileNetV3UNet().to(device)
         plot_model.load_state_dict(best_ckpt['model'])
         print(f"  (using best.pth — epoch={best_ckpt.get('epoch','?')}, "
               f"val_loss={best_ckpt.get('val_loss', '?'):.6f})")

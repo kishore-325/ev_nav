@@ -6,11 +6,11 @@ from torch.utils.data import DataLoader
 sys.path.append(os.environ['FLIGHTMARE_PATH'])
 sys.path.append(os.environ['PROJECT_PATH'])
 
-from perception.models import EfficientNetB0UNet
+from perception.models import MobileNetV3UNet
 from perception.dataset import EventDepthDataset
 
 TEST_DATASETS_DIR = os.path.join(os.environ['PROJECT_PATH'], 'datasets', 'Test')
-CKPT_PATH         = os.path.join('/home/srinivasan/ev_nav_run2', 'perception', 'checkpoints', 'best.pth')
+CKPT_PATH         = os.path.join('/home/srinivasan/ev_nav', 'perception', 'checkpoints', 'best.pth')
 DEPTH_THRESH      = 0.20
 BATCH_SIZE        = 64
 WORKERS           = 4
@@ -37,7 +37,7 @@ def evaluate():
                               shuffle=False, num_workers=WORKERS, pin_memory=True)
 
     # ── Model ─────────────────────────────────────
-    model = EfficientNetB0UNet().to(DEVICE)
+    model = MobileNetV3UNet().to(DEVICE)
     ckpt  = torch.load(CKPT_PATH, map_location=DEVICE)
     model.load_state_dict(ckpt['model'])
     model.eval()

@@ -19,7 +19,7 @@ class DecoderBlock(nn.Module):
         x = F.relu(self.bn1(self.conv1(torch.cat([x, skip], dim=1))))
         return F.relu(self.bn2(self.conv2(x)))
 
-class EfficientNetB0UNet(nn.Module):
+class MobileNetV3UNet(nn.Module):
     """
     EfficientNet-B0 encoder + UNet-style decoder with ConvLSTM at bottleneck.
 
@@ -31,7 +31,7 @@ class EfficientNetB0UNet(nn.Module):
         f1:  24ch,  65×87
         f2:  40ch,  33×44
         f3: 112ch,  17×22
-        f4: 320ch,   9×11  ← ConvLSTM here
+        f4: 960ch,   9×11  ← ConvLSTM here
     """
 
     def __init__(self, input_mode=1, evs_min_cutoff=0,
@@ -42,7 +42,7 @@ class EfficientNetB0UNet(nn.Module):
         in_ch = 2 if input_mode == 1 else 1
 
         self.encoder = timm.create_model(
-            'efficientnet_b0',
+            'mobilenetv3_large_100',
             pretrained=False,
             in_chans = in_ch,
             features_only = True,
@@ -50,7 +50,7 @@ class EfficientNetB0UNet(nn.Module):
         )
 
         self.lstm = ConvLSTM(
-            input_dim=320,
+            input_dim=960,
             hidden_dim=[lstm_hidden_dim],
             kernel_size=(lstm_kernel_size, lstm_kernel_size),
             num_layers =1,
@@ -93,7 +93,7 @@ class EfficientNetB0UNet(nn.Module):
         im = self._form_input(x)                       # (N,  2, 260, 346)          
 
         #Encoder
-        f0, f1, f2, f3, f4 = self.encoder(im)         # 16, 24, 40, 112, 320 ch
+        f0, f1, f2, f3, f4 = self.encoder(im)         # 16, 24, 40, 112, 960 ch
 
         #ConvLSTM at bottleneck
         f4_seq, h_new = self.lstm(f4.unsqueeze(0), h)
