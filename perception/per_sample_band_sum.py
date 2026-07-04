@@ -28,8 +28,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
 
-PROJECT_PATH = os.environ.get('PROJECT_PATH') or \
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PROJECT_PATH = os.path.expanduser('~/ev_nav')
 sys.path.append(PROJECT_PATH)
 if os.environ.get('FLIGHTMARE_PATH'):
     sys.path.append(os.environ['FLIGHTMARE_PATH'])
