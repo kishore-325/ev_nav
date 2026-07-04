@@ -133,4 +133,4 @@ class OrigUNet(nn.Module):
 
         # Upsample to input resolution
         y = F.interpolate(y, size=(self.input_h, self.input_w), mode='bilinear', align_corners=False)
-        return y, h_new                                                      # (N,1,260,346)
+        return y, h_new                                                       # (N,1,260,346)
