@@ -73,7 +73,7 @@ def combined_loss(pred, target, thresh=DEPTH_THRESH, weight_offset=0.02, berhu_c
     mask = (target >= 0) & (target <= thresh)
     weight = (1.0 / (target + weight_offset)) * mask.float()
     diff = (pred-target).abs()
-    c = berhu_c_frac * diff[mask].max().detach()
+    c = (berhu_c_frac * diff[mask].max().detach()).clamp(min=1e-6)
     bh = torch.where(diff <= c, diff, (diff**2 + c**2) / (2*c))
     main = (weight * bh).mean()
     grad = gradient_loss(pred, target, thresh)
